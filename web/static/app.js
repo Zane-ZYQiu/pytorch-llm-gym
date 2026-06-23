@@ -191,9 +191,12 @@ function resetCode() {
 
 async function showSolution() {
   if (!current) return;
-  if (!confirm("Show the reference solution? Try it yourself first!")) return;
   const res = await api(`/api/problems/${current.id}/solution`);
-  setConsole(res.code || "No solution available.", null);
+  const c = $("#console");
+  c.className = "";
+  c.innerHTML =
+    `<span class="dim">Reference solution — ${escapeHtml(stripNum(current.title))}:</span>\n\n` +
+    escapeHtml(res.code || "No solution available.");
 }
 
 // ---- navigation ----
