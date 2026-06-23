@@ -1,0 +1,77 @@
+<div class="viz" id="viz17">
+  <h4>Interactive · sinusoidal positional encoding</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Heatmap of <code>PE[pos, dim]</code>. Even columns are
+    <code>sin(pos/10000^(2i/d))</code>, odd columns <code>cos(...)</code>. Low dims wiggle fast (high
+    frequency), high dims slowly — the classic striped pattern that uniquely tags each position.
+  </p>
+  <div class="row">
+    <label>d_model</label>
+    <input id="v17-d" type="range" min="0" max="3" step="1" value="2" style="width:200px" />
+    <span class="val" id="v17-dv">16</span>
+    <span style="font-size:12px;color:#8b949e">positions = 16</span>
+  </div>
+  <canvas id="v17-canvas" width="384" height="384" style="image-rendering:pixelated;border:1px solid #2b3340;border-radius:6px;margin-top:8px;max-width:100%"></canvas>
+  <div class="row" style="margin-top:6px;font-size:11px;color:#8b949e">
+    <span>← dim →</span>
+    <span style="margin-left:auto">−1</span>
+    <span style="display:inline-block;width:90px;height:10px;border-radius:3px;background:linear-gradient(90deg,#f85149,#161b22,#4f8cff)"></span>
+    <span>+1</span>
+  </div>
+  <div style="font-size:11px;color:#8b949e;margin-top:2px">rows = positions (0 at top)</div>
+</div>
+<script>
+(function () {
+  var DS = [8, 12, 16, 32];
+  var SEQ = 16;
+  var slider = document.getElementById("v17-d");
+  if (!slider) return;
+  var dv = document.getElementById("v17-dv");
+  var canvas = document.getElementById("v17-canvas");
+  var ctx = canvas.getContext("2d");
+
+  function pe(pos, i, d) {
+    // div = 10000^(2*floor(i/2)/d); even -> sin, odd -> cos
+    var pair = Math.floor(i / 2);
+    var div = Math.pow(10000, (2 * pair) / d);
+    var ang = pos / div;
+    return (i % 2 === 0) ? Math.sin(ang) : Math.cos(ang);
+  }
+
+  function color(v) {
+    // v in [-1,1]: red(neg) -> dark(0) -> blue(pos)
+    if (v >= 0) {
+      var b = Math.round(22 + v * (79 - 22));
+      var g = Math.round(27 + v * (140 - 27));
+      // blend toward accent #4f8cff
+      var R = Math.round(22 + v * (79 - 22));
+      var G = Math.round(27 + v * (140 - 27));
+      var B = Math.round(34 + v * (255 - 34));
+      return "rgb(" + R + "," + G + "," + B + ")";
+    } else {
+      var t = -v;
+      var R = Math.round(22 + t * (248 - 22));
+      var G = Math.round(27 + t * (81 - 27));
+      var B = Math.round(34 + t * (73 - 34));
+      return "rgb(" + R + "," + G + "," + B + ")";
+    }
+  }
+
+  function render() {
+    var d = DS[parseInt(slider.value, 10)] || 16;
+    dv.textContent = d;
+    var cw = canvas.width / d;
+    var ch = canvas.height / SEQ;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (var pos = 0; pos < SEQ; pos++) {
+      for (var i = 0; i < d; i++) {
+        ctx.fillStyle = color(pe(pos, i, d));
+        ctx.fillRect(Math.floor(i * cw), Math.floor(pos * ch),
+          Math.ceil(cw), Math.ceil(ch));
+      }
+    }
+  }
+  slider.addEventListener("input", render);
+  render();
+})();
+</script>

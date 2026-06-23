@@ -1,0 +1,109 @@
+<div class="viz" id="viz14">
+  <h4>Interactive · splitting D into heads</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    With <code>D=8</code>, multi-head attention slices the model dim into <code>H</code> heads of
+    <code>head_dim = D/H</code>. Each head runs its own <code>softmax(QKᵀ/√head_dim)</code>; outputs are
+    concatenated back to <code>D</code> and mixed by <code>Wo</code>. Drag to repartition.
+  </p>
+  <div class="row">
+    <label>num_heads H</label>
+    <input id="v14-h" type="range" min="0" max="3" step="1" value="2" style="width:200px" />
+    <span class="val" id="v14-hv">2</span>
+    <span style="font-size:12px;color:#8b949e">head_dim =</span>
+    <span class="val" id="v14-hd">4</span>
+  </div>
+  <div id="v14-split" style="display:flex;gap:4px;margin:10px 0 4px"></div>
+  <div style="font-size:11px;color:#8b949e;margin-bottom:10px">x · Wq,Wk,Wv → (B,T,D), reshaped to (B,T,H,head_dim) → per-head attention → concat → · Wo</div>
+  <svg id="v14-flow" viewBox="0 0 460 120" width="100%" height="120" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+<script>
+(function () {
+  var HEADS = [1, 2, 4, 8];
+  var D = 8;
+  var palette = ["#4f8cff", "#2ea043", "#d29922", "#f85149", "#a371f7", "#3fb6c0", "#f0883e", "#db61a2"];
+  var slider = document.getElementById("v14-h");
+  if (!slider) return;
+  var hv = document.getElementById("v14-hv");
+  var hdv = document.getElementById("v14-hd");
+  var split = document.getElementById("v14-split");
+  var flow = document.getElementById("v14-flow");
+
+  function render() {
+    var H = HEADS[parseInt(slider.value, 10)] || 1;
+    var hd = D / H;
+    hv.textContent = H;
+    hdv.textContent = hd;
+
+    // partition strip: D cells coloured by their head
+    split.innerHTML = "";
+    for (var c = 0; c < D; c++) {
+      var head = Math.floor(c / hd);
+      var cell = document.createElement("div");
+      cell.style.cssText = "flex:1;height:30px;border-radius:4px;display:flex;align-items:center;" +
+        "justify-content:center;font:11px ui-monospace,monospace;color:#0d1117;font-weight:600;" +
+        "background:" + palette[head % palette.length];
+      cell.textContent = "d" + c;
+      split.appendChild(cell);
+    }
+
+    // flow diagram: H head boxes -> concat -> Wo
+    var ns = "http://www.w3.org/2000/svg";
+    flow.innerHTML = "";
+    var boxW = Math.min(70, (300 - (H - 1) * 8) / H);
+    var totalW = H * boxW + (H - 1) * 8;
+    var startX = (320 - totalW) / 2;
+    for (var i = 0; i < H; i++) {
+      var x = startX + i * (boxW + 8);
+      var r = document.createElementNS(ns, "rect");
+      r.setAttribute("x", x); r.setAttribute("y", 30);
+      r.setAttribute("width", boxW); r.setAttribute("height", 40);
+      r.setAttribute("rx", 6);
+      r.setAttribute("fill", "#1c2330");
+      r.setAttribute("stroke", palette[i % palette.length]);
+      r.setAttribute("stroke-width", "1.6");
+      flow.appendChild(r);
+      var t = document.createElementNS(ns, "text");
+      t.setAttribute("x", x + boxW / 2); t.setAttribute("y", 47);
+      t.setAttribute("text-anchor", "middle");
+      t.setAttribute("font-family", "ui-monospace,monospace");
+      t.setAttribute("font-size", "10"); t.setAttribute("fill", "#e6edf3");
+      t.textContent = "head " + i;
+      flow.appendChild(t);
+      var t2 = document.createElementNS(ns, "text");
+      t2.setAttribute("x", x + boxW / 2); t2.setAttribute("y", 60);
+      t2.setAttribute("text-anchor", "middle");
+      t2.setAttribute("font-family", "ui-monospace,monospace");
+      t2.setAttribute("font-size", "9"); t2.setAttribute("fill", "#8b949e");
+      t2.textContent = "·" + hd;
+      flow.appendChild(t2);
+      // line down to concat bar
+      var ln = document.createElementNS(ns, "line");
+      ln.setAttribute("x1", x + boxW / 2); ln.setAttribute("y1", 70);
+      ln.setAttribute("x2", x + boxW / 2); ln.setAttribute("y2", 86);
+      ln.setAttribute("stroke", palette[i % palette.length]); ln.setAttribute("stroke-width", "1.4");
+      flow.appendChild(ln);
+    }
+    // concat bar
+    var bar = document.createElementNS(ns, "rect");
+    bar.setAttribute("x", startX); bar.setAttribute("y", 86);
+    bar.setAttribute("width", totalW); bar.setAttribute("height", 22); bar.setAttribute("rx", 5);
+    bar.setAttribute("fill", "#2a3550"); bar.setAttribute("stroke", "#4f8cff"); bar.setAttribute("stroke-width", "1.2");
+    flow.appendChild(bar);
+    var bt = document.createElementNS(ns, "text");
+    bt.setAttribute("x", startX + totalW / 2); bt.setAttribute("y", 101);
+    bt.setAttribute("text-anchor", "middle"); bt.setAttribute("font-family", "ui-monospace,monospace");
+    bt.setAttribute("font-size", "10"); bt.setAttribute("fill", "#e6edf3");
+    bt.textContent = "concat → (B,T," + D + ")  ·Wo";
+    flow.appendChild(bt);
+    // Wo arrow to right
+    var wo = document.createElementNS(ns, "text");
+    wo.setAttribute("x", startX + totalW + 12); wo.setAttribute("y", 101);
+    wo.setAttribute("font-family", "ui-monospace,monospace"); wo.setAttribute("font-size", "10");
+    wo.setAttribute("fill", "#d29922");
+    wo.textContent = "→ out";
+    flow.appendChild(wo);
+  }
+  slider.addEventListener("input", render);
+  render();
+})();
+</script>

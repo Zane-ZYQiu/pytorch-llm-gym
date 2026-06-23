@@ -1,0 +1,69 @@
+<div class="viz" id="viz34">
+  <h4>Interactive · cross-modal cross-attention</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    <b>Text queries</b> (rows) attend to <b>image features</b> (columns). The only change from self-attention:
+    <code>Q</code> comes from the text sequence, while <code>K/V</code> come from the image context — so this is a
+    <code>T<sub>x</sub>×T<sub>c</sub></code> grid (no causal mask: a token may look at the whole image). Each row is
+    <code>softmax(QKᵀ/√d)</code> and sums to 1.
+  </p>
+  <div class="row">
+    <button id="v34-reroll" class="btn" style="padding:3px 9px">↻ new Q (text), K (image)</button>
+  </div>
+  <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-top:6px">
+    <div id="v34-grid"></div>
+    <div style="flex:1;min-width:190px;font-size:12.5px;color:#c9d1d9">
+      <b style="color:#4f8cff">self vs. cross.</b><br>
+      <span style="color:#8b949e">self-attn:</span> Q, K, V all from <i>one</i> sequence.<br>
+      <span style="color:#8b949e">cross-attn:</span> Q from <span style="color:#4f8cff">text</span>,
+      K/V from <span style="color:#2ea043">image</span> (a different sequence).<br><br>
+      Here <code>T<sub>x</sub>=4</code> text queries, <code>T<sub>c</sub>=6</code> image keys, <code>d=4</code>.
+      Each text token retrieves a weighted blend of image V-vectors.
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz34");
+  if (!root) return;
+  var Tx = 4, Tc = 6, d = 4;
+  var Q, K;
+  function randn() { return (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 1.2; }
+  function reroll() {
+    Q = []; K = [];
+    for (var i = 0; i < Tx; i++) { Q.push([]); for (var j = 0; j < d; j++) Q[i].push(randn()); }
+    for (var c = 0; c < Tc; c++) { K.push([]); for (var j2 = 0; j2 < d; j2++) K[c].push(randn()); }
+  }
+  function softmaxRow(xs) {
+    var m = -Infinity; xs.forEach(function (v) { if (v > m) m = v; });
+    var e = xs.map(function (v) { return Math.exp(v - m); });
+    var s = e.reduce(function (a, b) { return a + b; }, 0);
+    return e.map(function (v) { return v / s; });
+  }
+  function color(w) { return "rgba(79,140,255," + (0.08 + 0.92 * w).toFixed(3) + ")"; }
+  function render() {
+    var grid = root.querySelector("#v34-grid");
+    var html = '<div style="font-size:11px;color:#2ea043;margin-bottom:4px;padding-left:46px">image features (K/V context)</div>';
+    html += '<table style="border-collapse:collapse;font:12px ui-monospace,monospace">';
+    html += '<tr><td></td>';
+    for (var j = 0; j < Tc; j++) html += '<td style="color:#2ea043;text-align:center;padding:3px 6px">i' + j + '</td>';
+    html += '</tr>';
+    for (var i = 0; i < Tx; i++) {
+      var scores = [];
+      for (var c = 0; c < Tc; c++) { var dot = 0; for (var k = 0; k < d; k++) dot += Q[i][k] * K[c][k]; scores.push(dot / Math.sqrt(d)); }
+      var w = softmaxRow(scores);
+      html += '<tr><td style="color:#4f8cff;padding:3px 6px">q' + i + '</td>';
+      for (var c2 = 0; c2 < Tc; c2++) {
+        html += '<td style="width:46px;height:30px;text-align:center;background:' + color(w[c2]) +
+          ';border:1px solid #0d1117;color:' + (w[c2] > 0.5 ? "#fff" : "#c9d1d9") + '">' +
+          (w[c2] < 0.005 ? "0" : w[c2].toFixed(2)) + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+    html += '<div style="font-size:11px;color:#4f8cff;margin-top:4px">↑ rows = text queries (Q) · each row sums to 1</div>';
+    grid.innerHTML = html;
+  }
+  root.querySelector("#v34-reroll").addEventListener("click", function () { reroll(); render(); });
+  reroll(); render();
+})();
+</script>

@@ -1,0 +1,98 @@
+<div class="viz" id="viz30">
+  <h4>Interactive · PPO clipped objective</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    PPO maximizes <code>min(r·A, clip(r,1−ε,1+ε)·A)</code> over the probability ratio
+    <code>r = exp(logπ − logπ_old)</code>. Inside <b style="color:#4f8cff">[1−ε, 1+ε]</b> it follows
+    <code>r·A</code>; outside, the objective <b>flattens</b> — removing the incentive to over-update.
+  </p>
+  <div class="row">
+    <label>advantage A</label>
+    <input id="v30-a" type="range" min="-2" max="2" step="0.1" value="1" style="width:170px" />
+    <span class="val" id="v30-av">+1.0</span>
+    <label>ε</label>
+    <input id="v30-e" type="range" min="0.05" max="0.5" step="0.01" value="0.2" style="width:120px" />
+    <span class="val" id="v30-ev">0.20</span>
+  </div>
+  <svg id="v30-svg" viewBox="0 0 460 240" width="100%" height="240" style="max-width:460px;display:block;margin-top:6px" xmlns="http://www.w3.org/2000/svg"></svg>
+  <p id="v30-cap" style="font-size:12px;color:#8b949e;margin:8px 0 0"></p>
+</div>
+<script>
+(function () {
+  var svg = document.getElementById("v30-svg");
+  if (!svg) return;
+  var aEl = document.getElementById("v30-a"), eEl = document.getElementById("v30-e");
+  var av = document.getElementById("v30-av"), ev = document.getElementById("v30-ev");
+  var cap = document.getElementById("v30-cap");
+  var W = 460, H = 240, padL = 40, padR = 12, padT = 14, padB = 30;
+  var rMin = 0, rMax = 2;
+
+  function clip(x, lo, hi) { return Math.max(lo, Math.min(hi, x)); }
+
+  function render() {
+    var A = parseFloat(aEl.value), eps = parseFloat(eEl.value);
+    av.textContent = (A >= 0 ? "+" : "") + A.toFixed(1);
+    ev.textContent = eps.toFixed(2);
+
+    // objective L(r) = min(r*A, clip(r,1-eps,1+eps)*A)
+    function L(r) { return Math.min(r * A, clip(r, 1 - eps, 1 + eps) * A); }
+
+    // y-range based on A magnitude
+    var yAbs = Math.max(0.6, Math.abs(A) * (rMax)) * 1.05;
+    var yLo = -yAbs, yHi = yAbs;
+    function X(r) { return padL + (W - padL - padR) * (r - rMin) / (rMax - rMin); }
+    function Y(y) { return padT + (H - padT - padB) * (1 - (y - yLo) / (yHi - yLo)); }
+
+    var s = "";
+    // clip band [1-eps, 1+eps]
+    var bx0 = X(1 - eps), bx1 = X(1 + eps);
+    s += '<rect x="' + bx0.toFixed(1) + '" y="' + padT + '" width="' + (bx1 - bx0).toFixed(1) + '" height="' +
+      (H - padT - padB) + '" fill="rgba(79,140,255,0.10)"/>';
+    s += '<line x1="' + bx0.toFixed(1) + '" y1="' + padT + '" x2="' + bx0.toFixed(1) + '" y2="' + (H - padB) + '" stroke="#4f8cff" stroke-width="1" stroke-dasharray="3 3"/>';
+    s += '<line x1="' + bx1.toFixed(1) + '" y1="' + padT + '" x2="' + bx1.toFixed(1) + '" y2="' + (H - padB) + '" stroke="#4f8cff" stroke-width="1" stroke-dasharray="3 3"/>';
+    // axes
+    s += '<line x1="' + padL + '" y1="' + Y(0) + '" x2="' + (W - padR) + '" y2="' + Y(0) + '" stroke="#2b3340" stroke-width="1"/>';
+    s += '<line x1="' + X(1) + '" y1="' + padT + '" x2="' + X(1) + '" y2="' + (H - padB) + '" stroke="#2b3340" stroke-width="1"/>';
+    // x ticks
+    s += '<g font-family="ui-monospace,monospace" font-size="9" fill="#8b949e" text-anchor="middle">';
+    [0, 0.5, 1, 1.5, 2].forEach(function (r) { s += '<text x="' + X(r) + '" y="' + (H - padB + 14) + '">' + r.toFixed(1) + '</text>'; });
+    s += '<text x="' + ((padL + W - padR) / 2) + '" y="' + (H - 2) + '" fill="#c9d1d9">ratio r = π / π_old</text>';
+    s += '<text x="' + (bx0 + (bx1 - bx0) / 2).toFixed(1) + '" y="' + (padT + 10) + '" fill="#4f8cff">clip region</text>';
+    s += '</g>';
+    // y labels
+    s += '<g font-family="ui-monospace,monospace" font-size="9" fill="#8b949e" text-anchor="end">';
+    s += '<text x="' + (padL - 5) + '" y="' + (Y(0) + 3) + '">0</text>';
+    s += '<text x="' + (padL - 5) + '" y="' + (Y(yHi) + 8) + '">obj</text>';
+    s += '</g>';
+
+    // unclipped r*A line (faint, for reference)
+    var refPts = [];
+    for (var i = 0; i <= 100; i++) { var r = rMin + (rMax - rMin) * i / 100; refPts.push(X(r) + "," + Y(r * A)); }
+    s += '<polyline points="' + refPts.join(" ") + '" fill="none" stroke="#8b949e" stroke-width="1" stroke-dasharray="2 3" opacity="0.6"/>';
+
+    // PPO clipped objective line
+    var color = A >= 0 ? "#2ea043" : "#f85149";
+    var pts = [];
+    for (var j = 0; j <= 200; j++) { var rr = rMin + (rMax - rMin) * j / 200; pts.push(X(rr) + "," + Y(L(rr))); }
+    s += '<polyline points="' + pts.join(" ") + '" fill="none" stroke="' + color + '" stroke-width="2.5"/>';
+
+    // legend
+    s += '<g font-family="ui-monospace,monospace" font-size="9">';
+    s += '<rect x="' + (W - 150) + '" y="' + (padT) + '" width="10" height="3" fill="' + color + '"/><text x="' + (W - 136) + '" y="' + (padT + 4) + '" fill="#c9d1d9">clipped obj</text>';
+    s += '<rect x="' + (W - 150) + '" y="' + (padT + 13) + '" width="10" height="3" fill="#8b949e"/><text x="' + (W - 136) + '" y="' + (padT + 17) + '" fill="#c9d1d9">r·A (unclipped)</text>';
+    s += '</g>';
+
+    svg.innerHTML = s;
+
+    if (A >= 0) {
+      cap.innerHTML = '<b style="color:#2ea043">A &gt; 0</b> (good action): objective rises with r but is <b>capped at r = 1+ε</b> — ' +
+        'no extra reward for pushing the probability up further. Flat beyond ' + (1 + eps).toFixed(2) + '.';
+    } else {
+      cap.innerHTML = '<b style="color:#f85149">A &lt; 0</b> (bad action): objective rises as r shrinks but is <b>floored at r = 1−ε</b> — ' +
+        'no extra reward for slamming the probability to 0. Flat below ' + (1 - eps).toFixed(2) + '.';
+    }
+  }
+  aEl.addEventListener("input", render);
+  eEl.addEventListener("input", render);
+  render();
+})();
+</script>

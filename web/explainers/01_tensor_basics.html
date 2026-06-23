@@ -1,0 +1,82 @@
+<div class="viz" id="viz01">
+  <h4>Interactive · split_heads</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    One token vector of <code>D=8</code> features is reshaped into
+    <code>(num_heads, head_dim)</code>, then the head dim is moved to the front:
+    <code>(B,T,D) → (B,H,T,head_dim)</code>. Pick <code>num_heads</code> (a divisor of 8) and watch the cells regroup into heads.
+  </p>
+  <div class="row">
+    <label>num_heads</label>
+    <input id="v01-h" type="range" min="0" max="3" step="1" value="1" style="width:200px" />
+    <span class="val" id="v01-hv">2</span>
+    <span style="color:#8b949e;font-size:12px">head_dim = <span class="val" id="v01-hd">4</span></span>
+  </div>
+  <div style="font-size:11px;color:#8b949e;margin:6px 0 2px">x  (B, T, D=8) — one row of 8 features</div>
+  <div id="v01-row" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+  <div style="font-size:11px;color:#8b949e;margin:12px 0 2px">after split → grouped into heads (each head = head_dim features)</div>
+  <div id="v01-heads" style="display:flex;flex-direction:column;gap:6px"></div>
+  <div id="v01-shape" style="margin-top:12px;font:12px var(--mono,ui-monospace,monospace);color:#ffd9a0"></div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz01");
+  if (!root) return;
+  var D = 8;
+  var divisors = [1, 2, 4, 8];
+  var slider = root.querySelector("#v01-h");
+  var hv = root.querySelector("#v01-hv");
+  var hd = root.querySelector("#v01-hd");
+  var rowBox = root.querySelector("#v01-row");
+  var headsBox = root.querySelector("#v01-heads");
+  var shape = root.querySelector("#v01-shape");
+  if (!slider || !rowBox || !headsBox) return;
+
+  // distinct hues per head group
+  function headColor(h, H) {
+    var hue = H <= 1 ? 213 : Math.round((h * 360) / H);
+    return "hsl(" + hue + ",62%,52%)";
+  }
+  function cell(i, bg) {
+    var d = document.createElement("div");
+    d.style.cssText = "width:34px;height:34px;border-radius:6px;display:flex;align-items:center;" +
+      "justify-content:center;font:12px var(--mono,ui-monospace,monospace);color:#fff;" +
+      "border:1px solid #0d1117;background:" + bg;
+    d.textContent = i;
+    return d;
+  }
+  function render() {
+    var idx = parseInt(slider.value, 10);
+    var H = divisors[idx];
+    var headDim = D / H;
+    hv.textContent = H;
+    hd.textContent = headDim;
+
+    // top row: original D cells, coloured by which head each feature lands in
+    rowBox.innerHTML = "";
+    for (var i = 0; i < D; i++) {
+      var h = Math.floor(i / headDim);
+      rowBox.appendChild(cell(i, headColor(h, H)));
+    }
+
+    // grouped view: H rows, each head_dim cells (out[b,h,t,:] = x[b,t, h*head_dim:(h+1)*head_dim])
+    headsBox.innerHTML = "";
+    for (var hh = 0; hh < H; hh++) {
+      var line = document.createElement("div");
+      line.style.cssText = "display:flex;align-items:center;gap:6px";
+      var tag = document.createElement("span");
+      tag.style.cssText = "width:58px;font:11px var(--mono,ui-monospace,monospace);color:#8b949e";
+      tag.textContent = "head " + hh;
+      line.appendChild(tag);
+      for (var c = 0; c < headDim; c++) {
+        line.appendChild(cell(hh * headDim + c, headColor(hh, H)));
+      }
+      headsBox.appendChild(line);
+    }
+
+    shape.innerHTML = "reshape  (B,T," + D + ") → (B,T," + H + "," + headDim + ")" +
+      "<br>transpose(1,2) → <span style='color:#2ea043'>(B," + H + ",T," + headDim + ")</span>";
+  }
+  slider.addEventListener("input", render);
+  render();
+})();
+</script>

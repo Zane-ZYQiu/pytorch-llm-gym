@@ -1,0 +1,97 @@
+<div class="viz" id="viz28">
+  <h4>Interactive · online softmax (Flash-Attention tiling)</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Stream K/V in blocks. Keep a running max <b style="color:#f85149">m</b>, denominator
+    <b style="color:#d29922">l</b>, and output <b style="color:#4f8cff">o</b>. Each block rescales the old
+    stats by <code>exp(m_old−m_new)</code> — so memory stays <b>O(T)</b>, never the full O(T²) score matrix.
+  </p>
+  <div class="row">
+    <button id="v28-next" class="btn" style="padding:4px 12px">▶ next block</button>
+    <button id="v28-reset" class="btn" style="padding:4px 10px">↺ reset</button>
+    <span class="val" id="v28-prog">block 0 / 4</span>
+  </div>
+  <div id="v28-blocks" style="display:flex;gap:6px;margin-top:6px"></div>
+  <div id="v28-stat" style="font:12px ui-monospace,monospace;color:#c9d1d9;margin-top:8px;line-height:1.7"></div>
+  <p id="v28-cap" style="font-size:12px;color:#8b949e;margin:8px 0 0"></p>
+</div>
+<script>
+(function () {
+  var blocksEl = document.getElementById("v28-blocks");
+  if (!blocksEl) return;
+  // 1 query row, T=8 keys, scalar scores (sqrt(d) already folded in)
+  var scores = [1.2, 0.4, 2.1, -0.5, 0.9, 1.7, 0.2, 1.0]; // s = q·kᵀ/√d for each key
+  var vals   = [1.0, 0.0, 2.0,  1.0, 0.5, 1.5, 0.0, 1.0]; // scalar "value" per key
+  var BS = 2; // block size
+  var nBlocks = Math.ceil(scores.length / BS);
+  var nextBtn = document.getElementById("v28-next"), resetBtn = document.getElementById("v28-reset");
+  var prog = document.getElementById("v28-prog"), stat = document.getElementById("v28-stat"), cap = document.getElementById("v28-cap");
+  var done = 0, m = -Infinity, l = 0, o = 0;
+
+  function fullRef() {
+    // standard softmax attention over all keys, for comparison
+    var mx = Math.max.apply(null, scores);
+    var ex = scores.map(function (s) { return Math.exp(s - mx); });
+    var den = ex.reduce(function (a, b) { return a + b; }, 0);
+    var out = 0; for (var i = 0; i < scores.length; i++) out += (ex[i] / den) * vals[i];
+    return out;
+  }
+  var ref = fullRef();
+
+  function renderBlocks() {
+    var h = "";
+    for (var b = 0; b < nBlocks; b++) {
+      var state = b < done ? "done" : (b === done ? "next" : "todo");
+      var col = state === "done" ? "#2ea043" : (state === "next" ? "#4f8cff" : "#2b3340");
+      var bg = state === "done" ? "rgba(46,160,67,0.15)" : (state === "next" ? "rgba(79,140,255,0.15)" : "#161b22");
+      h += '<div style="flex:1;border:1px solid ' + col + ';background:' + bg + ';border-radius:6px;padding:5px;text-align:center">';
+      h += '<div style="font:10px ui-monospace,monospace;color:' + col + '">K/V blk ' + b + '</div>';
+      var lo = b * BS, hi = Math.min(lo + BS, scores.length);
+      var idx = []; for (var i = lo; i < hi; i++) idx.push("k" + i);
+      h += '<div style="font:9px ui-monospace,monospace;color:#8b949e">' + idx.join(" ") + '</div>';
+      h += '</div>';
+    }
+    blocksEl.innerHTML = h;
+    prog.textContent = "block " + done + " / " + nBlocks;
+  }
+
+  function processBlock() {
+    if (done >= nBlocks) return;
+    var lo = done * BS, hi = Math.min(lo + BS, scores.length);
+    var blkScores = scores.slice(lo, hi);
+    var rowmax = Math.max.apply(null, blkScores);
+    var mNew = Math.max(m, rowmax);
+    var alpha = (m === -Infinity) ? 0 : Math.exp(m - mNew); // rescale old stats
+    var pSum = 0, pv = 0;
+    for (var i = 0; i < blkScores.length; i++) {
+      var p = Math.exp(blkScores[i] - mNew);
+      pSum += p; pv += p * vals[lo + i];
+    }
+    l = alpha * l + pSum;
+    o = alpha * o + pv;
+    m = mNew;
+    done++;
+  }
+
+  function render() {
+    renderBlocks();
+    var out = l > 0 ? (o / l) : 0;
+    stat.innerHTML =
+      '<div>running max&nbsp;&nbsp;<b style="color:#f85149">m = ' + (m === -Infinity ? "−∞" : m.toFixed(3)) + '</b></div>' +
+      '<div>running denom&nbsp;<b style="color:#d29922">l = ' + l.toFixed(3) + '</b>' +
+        (done > 0 && done < nBlocks ? '&nbsp;<span style="color:#8b949e">(old stats rescaled by exp(m_old−m_new))</span>' : '') + '</div>' +
+      '<div>running out&nbsp;&nbsp;&nbsp;<b style="color:#4f8cff">o/l = ' + out.toFixed(4) + '</b></div>' +
+      '<div style="color:#8b949e;margin-top:3px">memory held: m, l, o &nbsp;→&nbsp; O(T), never the ' + scores.length + '×' + scores.length + ' score matrix</div>';
+    if (done >= nBlocks) {
+      cap.innerHTML = 'Done. Tiled result <b style="color:#4f8cff">' + out.toFixed(4) + '</b> equals full-softmax <b style="color:#2ea043">' +
+        ref.toFixed(4) + '</b> — Flash-Attention is <b>exact</b>, not approximate.';
+    } else {
+      cap.innerHTML = 'Press <b>next block</b> to fold in the next K/V tile via online softmax.';
+    }
+    nextBtn.disabled = done >= nBlocks;
+  }
+
+  nextBtn.addEventListener("click", function () { processBlock(); render(); });
+  resetBtn.addEventListener("click", function () { done = 0; m = -Infinity; l = 0; o = 0; render(); });
+  render();
+})();
+</script>

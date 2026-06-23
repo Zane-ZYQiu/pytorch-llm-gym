@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.progress.json
+.pytest_cache/
+.DS_Store

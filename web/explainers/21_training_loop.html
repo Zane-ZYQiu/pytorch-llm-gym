@@ -1,0 +1,103 @@
+<div class="viz" id="viz21">
+  <h4>Interactive · teacher forcing</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    The model sees <code>inputs = tokens[:-1]</code> and must predict <code>targets = tokens[1:]</code>:
+    each input position is trained to name the <b>next</b> token. Below, watch the loss collapse as we
+    overfit a single batch.
+  </p>
+  <div class="row">
+    <button id="v21-reroll" class="btn" style="padding:3px 9px">↻ new sequence</button>
+  </div>
+  <svg id="v21-seq" viewBox="0 0 560 150" width="100%" height="150" xmlns="http://www.w3.org/2000/svg" style="margin-top:6px"></svg>
+  <div class="row" style="margin-top:6px">
+    <label>Overfit one batch — loss per step</label>
+    <button id="v21-step" class="btn" style="padding:3px 9px">▶ run 1 step</button>
+    <button id="v21-reset" class="btn" style="padding:3px 9px">reset</button>
+    <span class="val" id="v21-loss">loss 4.20</span>
+  </div>
+  <svg id="v21-spark" viewBox="0 0 560 110" width="100%" height="110" xmlns="http://www.w3.org/2000/svg" style="margin-top:4px"></svg>
+</div>
+<script>
+(function () {
+  var seqSvg = document.getElementById("v21-seq");
+  var sparkSvg = document.getElementById("v21-spark");
+  var lossLbl = document.getElementById("v21-loss");
+  var vocab = ["the", "cat", "sat", "on", "a", "mat", "and", "ran", "fast", "home"];
+  var tokens = [];
+  var step = 0;
+  var L0 = 4.2, Lmin = 0.05, decay = 0.18; // decaying loss curve (overfit one batch)
+
+  function reroll() {
+    tokens = [];
+    var n = 6; // T+1 tokens -> 5 input/target pairs
+    for (var i = 0; i < n; i++) tokens.push(vocab[Math.floor(Math.random() * vocab.length)]);
+    drawSeq();
+  }
+
+  function box(x, y, w, h, fill, stroke, txt, txtColor) {
+    var s = '';
+    s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="6" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.4"/>';
+    s += '<text x="' + (x + w / 2) + '" y="' + (y + h / 2 + 4) + '" text-anchor="middle" font-family="ui-monospace,monospace" font-size="12" fill="' + txtColor + '">' + txt + '</text>';
+    return s;
+  }
+
+  function drawSeq() {
+    var n = tokens.length;          // T+1
+    var pairs = n - 1;              // T positions
+    var w = 70, gap = 14, h = 30;
+    var totalW = pairs * w + (pairs - 1) * gap;
+    var x0 = (560 - totalW) / 2;
+    var yIn = 30, yTar = 110;
+    var html = '';
+    html += '<defs><marker id="v21-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#d29922"/></marker></defs>';
+    html += '<text x="' + (x0 - 6) + '" y="' + (yIn + 19) + '" text-anchor="end" font-family="ui-monospace,monospace" font-size="11" fill="#8b949e">in</text>';
+    html += '<text x="' + (x0 - 6) + '" y="' + (yTar + 19) + '" text-anchor="end" font-family="ui-monospace,monospace" font-size="11" fill="#8b949e">tgt</text>';
+    for (var i = 0; i < pairs; i++) {
+      var x = x0 + i * (w + gap);
+      // input = tokens[i] (tokens[:-1]); target = tokens[i+1] (tokens[1:])
+      html += box(x, yIn, w, h, "#1c2330", "#4f8cff", tokens[i], "#e6edf3");
+      html += box(x, yTar, w, h, "#1c2330", "#2ea043", tokens[i + 1], "#e6edf3");
+      // arrow: input position -> next-token target (offset by one)
+      html += '<path d="M' + (x + w / 2) + ',' + (yIn + h) + ' C' + (x + w / 2) + ',' + (yIn + h + 26) + ' ' + (x + w + gap / 2) + ',' + (yTar - 26) + ' ' + (x + w + gap / 2) + ',' + (yTar) + '" fill="none" stroke="#d29922" stroke-width="1.5" marker-end="url(#v21-arrow)"/>';
+    }
+    seqSvg.innerHTML = html;
+  }
+
+  function lossAt(s) { return Lmin + (L0 - Lmin) * Math.exp(-decay * s); }
+
+  function drawSpark() {
+    var W = 560, H = 110, padL = 36, padR = 8, padT = 10, padB = 22;
+    var maxStep = 24;
+    var html = '';
+    // axes
+    html += '<line x1="' + padL + '" y1="' + (H - padB) + '" x2="' + (W - padR) + '" y2="' + (H - padB) + '" stroke="#2b3340" stroke-width="1"/>';
+    html += '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (H - padB) + '" stroke="#2b3340" stroke-width="1"/>';
+    html += '<text x="4" y="' + (padT + 8) + '" font-family="ui-monospace,monospace" font-size="10" fill="#8b949e">' + L0.toFixed(1) + '</text>';
+    html += '<text x="4" y="' + (H - padB) + '" font-family="ui-monospace,monospace" font-size="10" fill="#8b949e">0</text>';
+    html += '<text x="' + (W - padR) + '" y="' + (H - 6) + '" text-anchor="end" font-family="ui-monospace,monospace" font-size="10" fill="#8b949e">steps</text>';
+    function X(s) { return padL + (s / maxStep) * (W - padL - padR); }
+    function Y(l) { return padT + (1 - l / L0) * (H - padT - padB); }
+    // full faint reference curve
+    var ref = '';
+    for (var s = 0; s <= maxStep; s++) ref += (s === 0 ? 'M' : 'L') + X(s).toFixed(1) + ',' + Y(lossAt(s)).toFixed(1) + ' ';
+    html += '<path d="' + ref + '" fill="none" stroke="#2b3340" stroke-width="1.2" stroke-dasharray="3 3"/>';
+    // traced curve up to current step
+    if (step >= 1) {
+      var path = '';
+      for (var s2 = 0; s2 <= step && s2 <= maxStep; s2++) path += (s2 === 0 ? 'M' : 'L') + X(s2).toFixed(1) + ',' + Y(lossAt(s2)).toFixed(1) + ' ';
+      html += '<path d="' + path + '" fill="none" stroke="#4f8cff" stroke-width="2"/>';
+      var cs = Math.min(step, maxStep);
+      html += '<circle cx="' + X(cs).toFixed(1) + '" cy="' + Y(lossAt(cs)).toFixed(1) + '" r="3.5" fill="#4f8cff"/>';
+    }
+    sparkSvg.innerHTML = html;
+    lossLbl.textContent = "loss " + lossAt(Math.min(step, 24)).toFixed(2);
+  }
+
+  document.getElementById("v21-reroll").addEventListener("click", reroll);
+  document.getElementById("v21-step").addEventListener("click", function () { if (step < 24) step++; drawSpark(); });
+  document.getElementById("v21-reset").addEventListener("click", function () { step = 0; drawSpark(); });
+
+  reroll();
+  drawSpark();
+})();
+</script>

@@ -1,0 +1,93 @@
+<div class="viz" id="viz16">
+  <h4>Interactive · KV cache (incremental decoding)</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    At each step the new token computes one <code>q,k,v</code>. The <code>k,v</code> are
+    <b>appended</b> to the cache; the new <code>q</code> attends over <b>all</b> cached keys. No recompute —
+    that is why decoding is fast. Press <b>Step</b> to advance <code>t</code>.
+  </p>
+  <div class="row">
+    <button id="v16-step" class="btn primary" style="padding:5px 12px">Step ▶</button>
+    <button id="v16-reset" class="btn" style="padding:5px 10px">↺ reset</button>
+    <span style="font-size:12px;color:#8b949e">cached tokens</span>
+    <span class="val" id="v16-count">0</span>
+  </div>
+  <div style="display:flex;gap:18px;align-items:flex-start;margin-top:10px;flex-wrap:wrap">
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">K cache</div>
+      <div id="v16-kcache" style="display:flex;gap:3px;min-height:88px;align-items:flex-end"></div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">V cache</div>
+      <div id="v16-vcache" style="display:flex;gap:3px;min-height:88px;align-items:flex-end"></div>
+    </div>
+  </div>
+  <div id="v16-attn" style="margin-top:10px;font-size:12px;color:#c9d1d9"></div>
+</div>
+<script>
+(function () {
+  var MAX = 8, ROWS = 4;
+  var stepBtn = document.getElementById("v16-step");
+  if (!stepBtn) return;
+  var resetBtn = document.getElementById("v16-reset");
+  var kbox = document.getElementById("v16-kcache");
+  var vbox = document.getElementById("v16-vcache");
+  var count = document.getElementById("v16-count");
+  var attn = document.getElementById("v16-attn");
+  var t = 0;
+
+  function column(idx, isNew, accent) {
+    var col = document.createElement("div");
+    col.style.cssText = "display:flex;flex-direction:column;gap:2px;align-items:center";
+    var stack = document.createElement("div");
+    stack.style.cssText = "display:flex;flex-direction:column;gap:2px";
+    for (var r = 0; r < ROWS; r++) {
+      var cell = document.createElement("div");
+      // deterministic pseudo shade per (idx,row) so it looks like data
+      var s = ((idx * 7 + r * 13) % 100) / 100;
+      var a = (0.25 + 0.7 * s).toFixed(2);
+      cell.style.cssText = "width:18px;height:16px;border-radius:3px;background:rgba(" +
+        accent + "," + a + ")";
+      stack.appendChild(cell);
+    }
+    var lab = document.createElement("div");
+    lab.style.cssText = "font:10px ui-monospace,monospace;color:" + (isNew ? "#d29922" : "#8b949e");
+    lab.textContent = (isNew ? "+" : "") + idx;
+    col.appendChild(stack); col.appendChild(lab);
+    if (isNew) col.style.outline = "1px dashed #d29922";
+    return col;
+  }
+
+  function render(newIdx) {
+    kbox.innerHTML = ""; vbox.innerHTML = "";
+    for (var i = 0; i < t; i++) {
+      var isNew = (i === newIdx);
+      kbox.appendChild(column(i, isNew, "79,140,255"));
+      vbox.appendChild(column(i, isNew, "46,160,67"));
+    }
+    count.textContent = t;
+    if (t === 0) {
+      attn.innerHTML = "<span style='color:#8b949e'>Cache empty. Press Step to generate token 0.</span>";
+    } else {
+      var keys = [];
+      for (var j = 0; j < t; j++) keys.push("k" + j);
+      attn.innerHTML = "new query <b style='color:#d29922'>q" + (t - 1) +
+        "</b> attends over " + t + " cached key" + (t > 1 ? "s" : "") +
+        ": softmax(q" + (t - 1) + "·[" + keys.join(",") + "]ᵀ/√d) · V";
+    }
+  }
+
+  function step() {
+    if (t >= MAX) return;
+    t += 1;
+    render(t - 1);
+    stepBtn.disabled = (t >= MAX);
+    stepBtn.textContent = (t >= MAX) ? "max len" : "Step ▶";
+  }
+  function reset() {
+    t = 0; stepBtn.disabled = false; stepBtn.textContent = "Step ▶"; render(-1);
+  }
+  stepBtn.addEventListener("click", step);
+  resetBtn.addEventListener("click", reset);
+  reset();
+})();
+</script>

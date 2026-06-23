@@ -1,0 +1,102 @@
+<div class="viz" id="viz15">
+  <h4>Interactive · GQA — sharing KV heads</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    <code>N=8</code> query heads, but only <code>K</code> key/value heads. Each group of
+    <code>N/K</code> query heads <b>shares</b> one KV head (<code>repeat_interleave</code>). Fewer KV heads
+    → smaller KV cache. <code>K=1</code> is MQA, <code>K=N</code> is plain MHA.
+  </p>
+  <div class="row">
+    <label>num_kv_heads K</label>
+    <input id="v15-k" type="range" min="0" max="3" step="1" value="1" style="width:200px" />
+    <span class="val" id="v15-kv">2</span>
+    <span id="v15-mode" style="font-size:12px;font-weight:600"></span>
+  </div>
+  <svg id="v15-svg" viewBox="0 0 460 170" width="100%" height="170" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="row" style="margin-top:6px">
+    <label>KV-cache size (× MHA)</label>
+    <div style="flex:1;max-width:240px;height:18px;background:#0b1020;border:1px solid #2b3340;border-radius:5px;overflow:hidden">
+      <div id="v15-bar" style="height:100%;background:linear-gradient(#2ea043,#1f7a32);transition:width .15s"></div>
+    </div>
+    <span class="val" id="v15-frac">1.00×</span>
+  </div>
+</div>
+<script>
+(function () {
+  var N = 8;
+  var KS = [1, 2, 4, 8];
+  var palette = ["#4f8cff", "#2ea043", "#d29922", "#f85149", "#a371f7", "#3fb6c0", "#f0883e", "#db61a2"];
+  var slider = document.getElementById("v15-k");
+  if (!slider) return;
+  var kvLbl = document.getElementById("v15-kv");
+  var mode = document.getElementById("v15-mode");
+  var svg = document.getElementById("v15-svg");
+  var bar = document.getElementById("v15-bar");
+  var frac = document.getElementById("v15-frac");
+  var ns = "http://www.w3.org/2000/svg";
+
+  function box(x, y, w, h, fill, stroke, label) {
+    var r = document.createElementNS(ns, "rect");
+    r.setAttribute("x", x); r.setAttribute("y", y); r.setAttribute("width", w); r.setAttribute("height", h);
+    r.setAttribute("rx", 5); r.setAttribute("fill", fill); r.setAttribute("stroke", stroke); r.setAttribute("stroke-width", "1.4");
+    svg.appendChild(r);
+    var t = document.createElementNS(ns, "text");
+    t.setAttribute("x", x + w / 2); t.setAttribute("y", y + h / 2 + 4);
+    t.setAttribute("text-anchor", "middle"); t.setAttribute("font-family", "ui-monospace,monospace");
+    t.setAttribute("font-size", "10"); t.setAttribute("fill", "#0d1117"); t.setAttribute("font-weight", "600");
+    t.textContent = label;
+    svg.appendChild(t);
+  }
+
+  function render() {
+    var K = KS[parseInt(slider.value, 10)] || 1;
+    var g = N / K; // query heads per kv head
+    kvLbl.textContent = K;
+    if (K === 1) { mode.textContent = "= MQA"; mode.style.color = "#d29922"; }
+    else if (K === N) { mode.textContent = "= MHA"; mode.style.color = "#4f8cff"; }
+    else { mode.textContent = "GQA (group " + g + ")"; mode.style.color = "#2ea043"; }
+
+    svg.innerHTML = "";
+    var qw = 46, qgap = 6, qStart = (460 - (N * qw + (N - 1) * qgap)) / 2;
+    var kw = qw * g + qgap * (g - 1);
+
+    // query heads on top, coloured by their kv group
+    for (var i = 0; i < N; i++) {
+      var grp = Math.floor(i / g);
+      var qx = qStart + i * (qw + qgap);
+      box(qx, 12, qw, 30, palette[grp % palette.length], palette[grp % palette.length], "q" + i);
+    }
+    // kv heads below
+    for (var j = 0; j < K; j++) {
+      var kx = qStart + j * (kw + qgap);
+      box(kx, 120, kw, 30, "#1c2330", palette[j % palette.length], "kv" + j);
+      // lines from each query head in this group to its kv head
+      var kcx = kx + kw / 2;
+      for (var m = 0; m < g; m++) {
+        var qi = j * g + m;
+        var qcx = qStart + qi * (qw + qgap) + qw / 2;
+        var ln = document.createElementNS(ns, "line");
+        ln.setAttribute("x1", qcx); ln.setAttribute("y1", 42);
+        ln.setAttribute("x2", kcx); ln.setAttribute("y2", 120);
+        ln.setAttribute("stroke", palette[j % palette.length]); ln.setAttribute("stroke-width", "1.2");
+        ln.setAttribute("opacity", "0.65");
+        svg.appendChild(ln);
+      }
+    }
+    // labels
+    var lq = document.createElementNS(ns, "text");
+    lq.setAttribute("x", 6); lq.setAttribute("y", 30); lq.setAttribute("font-family", "ui-monospace,monospace");
+    lq.setAttribute("font-size", "10"); lq.setAttribute("fill", "#8b949e"); lq.textContent = "Q";
+    svg.appendChild(lq);
+    var lk = document.createElementNS(ns, "text");
+    lk.setAttribute("x", 6); lk.setAttribute("y", 138); lk.setAttribute("font-family", "ui-monospace,monospace");
+    lk.setAttribute("font-size", "10"); lk.setAttribute("fill", "#8b949e"); lk.textContent = "KV";
+    svg.appendChild(lk);
+
+    var ratio = K / N; // cache shrinks by factor K/N relative to MHA
+    bar.style.width = (ratio * 100) + "%";
+    frac.textContent = ratio.toFixed(2) + "×";
+  }
+  slider.addEventListener("input", render);
+  render();
+})();
+</script>

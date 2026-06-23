@@ -1,0 +1,84 @@
+<div class="viz" id="viz23">
+  <h4>Interactive · warmup + cosine LR</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Linear <b>warmup</b> raises the rate from 0 to <code>base_lr</code>, then a <b>cosine decay</b>
+    eases it down to <code>min_lr</code>. Drag the sliders and watch the curve and the
+    warmup/decay boundary move.
+  </p>
+  <div class="row">
+    <label>warmup_steps</label>
+    <input id="v23-w" type="range" min="0" max="400" step="10" value="100" style="width:200px" />
+    <span class="val" id="v23-wv">100</span>
+  </div>
+  <div class="row">
+    <label>total_steps</label>
+    <input id="v23-t" type="range" min="200" max="2000" step="50" value="1000" style="width:200px" />
+    <span class="val" id="v23-tv">1000</span>
+  </div>
+  <svg id="v23-svg" viewBox="0 0 560 220" width="100%" height="220" xmlns="http://www.w3.org/2000/svg" style="margin-top:8px"></svg>
+  <div id="v23-note" style="font-size:12px;color:#8b949e;margin-top:6px"></div>
+</div>
+<script>
+(function () {
+  var wEl = document.getElementById("v23-w"), wv = document.getElementById("v23-wv");
+  var tEl = document.getElementById("v23-t"), tv = document.getElementById("v23-tv");
+  var svg = document.getElementById("v23-svg");
+  var note = document.getElementById("v23-note");
+  var baseLr = 1.0, minLr = 0.1; // normalised; curve shape is what matters
+
+  // mirrors lr_at_step from task.py
+  function lrAtStep(step, warmup, total) {
+    if (warmup > 0 && step < warmup) return baseLr * step / warmup;
+    var denom = Math.max(total - warmup, 1);
+    var progress = (step - warmup) / denom;
+    if (progress > 1) progress = 1;
+    return minLr + (baseLr - minLr) * 0.5 * (1 + Math.cos(Math.PI * progress));
+  }
+
+  function render() {
+    var warmup = parseInt(wEl.value, 10);
+    var total = parseInt(tEl.value, 10);
+    if (warmup >= total) warmup = total - 10;
+    wv.textContent = warmup; tv.textContent = total;
+
+    var W = 560, H = 220, padL = 40, padR = 14, padT = 14, padB = 28;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    function X(s) { return padL + (s / total) * plotW; }
+    function Y(lr) { return padT + (1 - lr / baseLr) * plotH; }
+
+    var html = '';
+    // axes
+    html += '<line x1="' + padL + '" y1="' + (H - padB) + '" x2="' + (W - padR) + '" y2="' + (H - padB) + '" stroke="#2b3340" stroke-width="1"/>';
+    html += '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (H - padB) + '" stroke="#2b3340" stroke-width="1"/>';
+    // y ticks
+    html += '<text x="6" y="' + (padT + 8) + '" font-family="ui-monospace,monospace" font-size="10" fill="#8b949e">base</text>';
+    html += '<text x="6" y="' + (Y(minLr) + 4) + '" font-family="ui-monospace,monospace" font-size="10" fill="#8b949e">min</text>';
+    html += '<line x1="' + (padL - 3) + '" y1="' + Y(minLr) + '" x2="' + (W - padR) + '" y2="' + Y(minLr) + '" stroke="#2b3340" stroke-width="1" stroke-dasharray="3 3"/>';
+    html += '<text x="' + (W - padR) + '" y="' + (H - 8) + '" text-anchor="end" font-family="ui-monospace,monospace" font-size="10" fill="#8b949e">step</text>';
+
+    // boundary marker (warmup -> decay)
+    var bx = X(warmup);
+    html += '<line x1="' + bx.toFixed(1) + '" y1="' + padT + '" x2="' + bx.toFixed(1) + '" y2="' + (H - padB) + '" stroke="#d29922" stroke-width="1.3" stroke-dasharray="4 3"/>';
+    html += '<text x="' + (bx + 4).toFixed(1) + '" y="' + (padT + 10) + '" font-family="ui-monospace,monospace" font-size="10" fill="#d29922">warmup→cosine</text>';
+
+    // curve
+    var path = '';
+    var N = 200;
+    for (var i = 0; i <= N; i++) {
+      var s = (i / N) * total;
+      var lr = lrAtStep(s, warmup, total);
+      path += (i === 0 ? 'M' : 'L') + X(s).toFixed(1) + ',' + Y(lr).toFixed(1) + ' ';
+    }
+    html += '<path d="' + path + '" fill="none" stroke="#4f8cff" stroke-width="2"/>';
+    // peak dot at end of warmup
+    html += '<circle cx="' + bx.toFixed(1) + '" cy="' + Y(lrAtStep(warmup, warmup, total)).toFixed(1) + '" r="3.5" fill="#d29922"/>';
+
+    svg.innerHTML = html;
+    note.textContent = "warmup: linear 0 → base over " + warmup + " steps · then cosine decay to min_lr over the remaining " + (total - warmup) + " steps.";
+  }
+
+  wEl.addEventListener("input", render);
+  tEl.addEventListener("input", render);
+  render();
+})();
+</script>

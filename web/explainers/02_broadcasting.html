@@ -1,0 +1,77 @@
+<div class="viz" id="viz02">
+  <h4>Interactive · broadcasting</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    A column <code>a</code> of shape <code>(3,1)</code> and a row <code>b</code> of shape <code>(1,4)</code>
+    are <b>broadcast</b> to <code>(3,4)</code>: PyTorch virtually replicates each size-1 axis. The result is
+    <code>a[:,None] + b[None,:]</code>, where <code>out[i,j] = a[i] + b[j]</code>.
+  </p>
+  <div class="row">
+    <button id="v02-reroll" class="btn" style="padding:3px 9px">↻ reroll numbers</button>
+    <span style="color:#8b949e;font-size:12px">elementwise add after broadcast</span>
+  </div>
+  <div id="v02-stage" style="margin-top:10px;overflow-x:auto"></div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz02");
+  if (!root) return;
+  var N = 3, M = 4;
+  var a, b;
+  var stage = root.querySelector("#v02-stage");
+  var reroll = root.querySelector("#v02-reroll");
+  if (!stage) return;
+
+  function rand() { return Math.floor(Math.random() * 9) + 1; }
+  function gen() {
+    a = []; for (var i = 0; i < N; i++) a.push(rand());
+    b = []; for (var j = 0; j < M; j++) b.push(rand());
+  }
+  function box(txt, bg, color) {
+    return '<div style="width:38px;height:34px;display:flex;align-items:center;justify-content:center;' +
+      'border-radius:6px;border:1px solid #0d1117;font:13px var(--mono,ui-monospace,monospace);' +
+      'background:' + bg + ';color:' + (color || "#fff") + '">' + txt + '</div>';
+  }
+  function render() {
+    // a column (3,1) — accent ; b row (1,4) — yellow ; grid green-tinted
+    var html = '<div style="display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap">';
+
+    // a (3,1)
+    html += '<div><div style="font:11px var(--mono,ui-monospace,monospace);color:#8b949e;margin-bottom:4px">a (3,1)</div>' +
+      '<div style="display:flex;flex-direction:column;gap:4px">';
+    for (var i = 0; i < N; i++) html += box(a[i], "#2a4a86");
+    html += '</div></div>';
+
+    // plus
+    html += '<div style="align-self:center;font-size:20px;color:#8b949e">+</div>';
+
+    // b (1,4)
+    html += '<div><div style="font:11px var(--mono,ui-monospace,monospace);color:#8b949e;margin-bottom:4px">b (1,4)</div>' +
+      '<div style="display:flex;gap:4px">';
+    for (var j = 0; j < M; j++) html += box(b[j], "#7a5a14");
+    html += '</div></div>';
+
+    // equals
+    html += '<div style="align-self:center;font-size:20px;color:#8b949e">=</div>';
+
+    // grid (3,4)
+    html += '<div><div style="font:11px var(--mono,ui-monospace,monospace);color:#8b949e;margin-bottom:4px">out (3,4)</div>';
+    // header row showing b
+    html += '<div style="display:flex;gap:4px;margin-bottom:4px;margin-left:42px">';
+    for (var j = 0; j < M; j++) html += box(b[j], "#7a5a14");
+    html += '</div>';
+    for (var i = 0; i < N; i++) {
+      html += '<div style="display:flex;gap:4px;margin-bottom:4px">';
+      html += box(a[i], "#2a4a86");
+      for (var j = 0; j < M; j++) {
+        var v = a[i] + b[j];
+        html += box(v, "rgba(46,160,67,0.30)", "#e6edf3");
+      }
+      html += '</div>';
+    }
+    html += '</div></div>';
+    stage.innerHTML = html;
+  }
+  if (reroll) reroll.addEventListener("click", function () { gen(); render(); });
+  gen(); render();
+})();
+</script>

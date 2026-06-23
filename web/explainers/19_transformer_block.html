@@ -1,0 +1,60 @@
+<div class="viz" id="viz19">
+  <h4>Diagram · pre-norm Transformer block</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 8px">Hover a box to see what it does. Data flows bottom → top; the two curved arrows are residual connections.</p>
+  <div style="display:flex;gap:14px;align-items:center">
+    <svg id="v19-svg" viewBox="0 0 220 360" width="200" height="330" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="v19-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="#8b949e"/>
+        </marker>
+      </defs>
+      <!-- main spine -->
+      <line x1="110" y1="350" x2="110" y2="20" stroke="#2b3340" stroke-width="2"/>
+      <!-- residual arcs -->
+      <path d="M110,300 C175,300 175,225 110,225" fill="none" stroke="#d29922" stroke-width="1.6" marker-end="url(#v19-arrow)"/>
+      <path d="M110,150 C175,150 175,75 110,75" fill="none" stroke="#d29922" stroke-width="1.6" marker-end="url(#v19-arrow)"/>
+      <g font-family="ui-monospace,monospace" font-size="11" text-anchor="middle">
+        <text x="110" y="345" fill="#8b949e">x  (B,T,D)</text>
+        <g class="v19box" data-k="norm1"><rect x="40" y="270" width="140" height="30" rx="6"/><text x="110" y="289">RMSNorm</text></g>
+        <g class="v19box" data-k="attn"><rect x="40" y="225" width="140" height="30" rx="6"/><text x="110" y="244">Causal Self-Attention</text></g>
+        <text x="118" y="214" fill="#d29922" text-anchor="start">+</text>
+        <g class="v19box" data-k="norm2"><rect x="40" y="120" width="140" height="30" rx="6"/><text x="110" y="139">RMSNorm</text></g>
+        <g class="v19box" data-k="ffn"><rect x="40" y="75" width="140" height="30" rx="6"/><text x="110" y="94">SwiGLU FFN</text></g>
+        <text x="118" y="64" fill="#d29922" text-anchor="start">+</text>
+        <text x="110" y="14" fill="#8b949e">output</text>
+      </g>
+    </svg>
+    <div id="v19-cap" style="flex:1;font-size:13px;color:#c9d1d9;min-height:60px">
+      <b style="color:#4f8cff">Pre-norm + residual.</b> Normalize <i>before</i> each sub-layer, then add the
+      sub-layer output back to the input. Residuals are the gradient highway that lets deep stacks train.
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var caps = {
+    norm1: "<b style='color:#4f8cff'>RMSNorm (1).</b> Normalize each token vector by its root-mean-square before attention. Stabilizes activations; cheaper than LayerNorm (no mean-subtraction, no bias).",
+    attn:  "<b style='color:#4f8cff'>Causal self-attention.</b> Each position mixes information from itself and earlier positions only (upper-triangular mask = −∞). This is where tokens 'talk' to each other.",
+    norm2: "<b style='color:#4f8cff'>RMSNorm (2).</b> Normalize again before the feed-forward sub-layer — same pre-norm pattern.",
+    ffn:   "<b style='color:#4f8cff'>SwiGLU FFN.</b> Position-wise gated MLP: down(silu(x·W_gate) ⊙ (x·W_up)). Adds capacity / non-linearity per token.",
+  };
+  var def = document.getElementById("v19-cap").innerHTML;
+  var svg = document.getElementById("v19-svg");
+  // style boxes
+  svg.querySelectorAll(".v19box rect").forEach(function (r) {
+    r.setAttribute("fill", "#1c2330"); r.setAttribute("stroke", "#4f8cff"); r.setAttribute("stroke-width", "1.4");
+  });
+  svg.querySelectorAll(".v19box text").forEach(function (t) { t.setAttribute("fill", "#e6edf3"); });
+  svg.querySelectorAll(".v19box").forEach(function (g) {
+    g.style.cursor = "pointer";
+    g.addEventListener("mouseenter", function () {
+      g.querySelector("rect").setAttribute("fill", "#2a3550");
+      document.getElementById("v19-cap").innerHTML = caps[g.dataset.k];
+    });
+    g.addEventListener("mouseleave", function () {
+      g.querySelector("rect").setAttribute("fill", "#1c2330");
+      document.getElementById("v19-cap").innerHTML = def;
+    });
+  });
+})();
+</script>

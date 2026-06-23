@@ -1,0 +1,78 @@
+<div class="viz" id="viz27">
+  <h4>Interactive · LoRA low-rank adaptation</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Freeze the big pretrained <code>W</code> (out×in) and learn a low-rank delta
+    <code>ΔW = B·A·(α/r)</code>. Only the two thin factors <b style="color:#2ea043">A (r×in)</b> and
+    <b style="color:#d29922">B (out×r)</b> train. Drag <code>r</code> and watch the trainable count.
+  </p>
+  <div class="row">
+    <label>rank r</label>
+    <input id="v27-r" type="range" min="1" max="16" step="1" value="4" style="width:200px" />
+    <span class="val" id="v27-rv">4</span>
+  </div>
+  <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:6px">
+    <svg id="v27-svg" viewBox="0 0 300 130" width="300" height="130" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div style="flex:1;min-width:200px">
+      <div style="font:12px ui-monospace,monospace;color:#c9d1d9;margin-bottom:6px">trainable params</div>
+      <div id="v27-bars"></div>
+    </div>
+  </div>
+  <p id="v27-cap" style="font-size:12px;color:#8b949e;margin:8px 0 0"></p>
+</div>
+<script>
+(function () {
+  var svg = document.getElementById("v27-svg");
+  if (!svg) return;
+  var IN = 64, OUT = 64; // illustrative dims
+  var rEl = document.getElementById("v27-r"), rv = document.getElementById("v27-rv");
+  var bars = document.getElementById("v27-bars"), cap = document.getElementById("v27-cap");
+  function render() {
+    var r = parseInt(rEl.value, 10);
+    rv.textContent = r;
+    // --- diagram: frozen W grid + thin B and A ---
+    var s = '';
+    // W (frozen, large) — gray hatched grid
+    s += '<g font-family="ui-monospace,monospace" font-size="9" text-anchor="middle">';
+    s += '<rect x="6" y="22" width="78" height="78" rx="4" fill="#1c2330" stroke="#8b949e" stroke-width="1.4"/>';
+    for (var gx = 1; gx < 6; gx++) s += '<line x1="' + (6 + gx * 13) + '" y1="22" x2="' + (6 + gx * 13) + '" y2="100" stroke="#2b3340"/>';
+    for (var gy = 1; gy < 6; gy++) s += '<line x1="6" y1="' + (22 + gy * 13) + '" x2="84" y2="' + (22 + gy * 13) + '" stroke="#2b3340"/>';
+    s += '<text x="45" y="16" fill="#8b949e">W frozen</text>';
+    s += '<text x="45" y="113" fill="#8b949e">' + OUT + '×' + IN + '</text>';
+    s += '<text x="92" y="64" fill="#d29922">+</text>';
+    // B (out × r) — thin vertical, width scales a little with r
+    var bw = Math.max(6, Math.min(34, r * 2.2));
+    s += '<rect x="104" y="22" width="' + bw + '" height="78" rx="3" fill="#d29922" opacity="0.85"/>';
+    s += '<text x="' + (104 + bw / 2) + '" y="16" fill="#d29922">B</text>';
+    s += '<text x="' + (104 + bw / 2) + '" y="113" fill="#8b949e">' + OUT + '×r</text>';
+    s += '<text x="' + (104 + bw + 6) + '" y="64" fill="#8b949e">·</text>';
+    // A (r × in) — thin horizontal
+    var ax = 104 + bw + 14, bh = Math.max(6, Math.min(34, r * 2.2));
+    s += '<rect x="' + ax + '" y="' + (61 - bh / 2) + '" width="78" height="' + bh + '" rx="3" fill="#2ea043" opacity="0.85"/>';
+    s += '<text x="' + (ax + 39) + '" y="' + (61 - bh / 2 - 5) + '" fill="#2ea043">A</text>';
+    s += '<text x="' + (ax + 39) + '" y="' + (61 + bh / 2 + 13) + '" fill="#8b949e">r×' + IN + '</text>';
+    s += '</g>';
+    svg.innerHTML = s;
+    // --- param bars ---
+    var full = IN * OUT;
+    var lora = r * (IN + OUT);
+    var maxv = full;
+    function bar(label, val, color) {
+      var pct = (val / maxv) * 100;
+      return '<div style="margin:4px 0">' +
+        '<div style="display:flex;justify-content:space-between;font:11px ui-monospace,monospace;color:#c9d1d9">' +
+        '<span>' + label + '</span><span style="color:' + color + '">' + val.toLocaleString() + '</span></div>' +
+        '<div style="height:14px;background:#161b22;border-radius:4px;overflow:hidden;margin-top:2px">' +
+        '<div style="height:100%;width:' + Math.max(pct, 1.5).toFixed(1) + '%;background:' + color + ';border-radius:4px"></div></div></div>';
+    }
+    bars.innerHTML =
+      bar("full  in·out", full, "#8b949e") +
+      bar("LoRA  r·(in+out)", lora, "#4f8cff");
+    var ratio = (full / lora);
+    cap.innerHTML = 'Trainable drops <b style="color:#2ea043">' + ratio.toFixed(1) + '×</b> (' +
+      lora.toLocaleString() + ' vs ' + full.toLocaleString() + '). ' +
+      '<b style="color:#4f8cff">B starts at 0</b>, so ΔW=0 at step 0 — training begins exactly as the base model, then learns.';
+  }
+  rEl.addEventListener("input", render);
+  render();
+})();
+</script>

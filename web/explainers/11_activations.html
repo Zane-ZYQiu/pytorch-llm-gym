@@ -1,0 +1,77 @@
+<div class="viz" id="viz11">
+  <h4>Interactive · GELU, SiLU & SwiGLU</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    <code>silu(x)=x·σ(x)</code> and exact <code>gelu(x)=x·½(1+erf(x/√2))</code> — smooth, near-identical curves.
+    Below: a SwiGLU gate <code>silu(gate)·up</code>.
+  </p>
+  <svg id="v11-svg" viewBox="0 0 360 200" width="360" height="200" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#2b3340" stroke-width="1">
+      <line x1="20" y1="150" x2="340" y2="150"/>
+      <line x1="180" y1="20" x2="180" y2="185"/>
+    </g>
+    <g font-family="ui-monospace,monospace" font-size="9" fill="#8b949e">
+      <text x="335" y="163">x</text><text x="186" y="28">y</text>
+      <text x="24" y="163">-4</text><text x="330" y="163">4</text>
+      <text x="186" y="60">2</text>
+    </g>
+    <path id="v11-gelu" fill="none" stroke="#4f8cff" stroke-width="2"/>
+    <path id="v11-silu" fill="none" stroke="#d29922" stroke-width="2" stroke-dasharray="4 3"/>
+    <g font-family="ui-monospace,monospace" font-size="10">
+      <rect x="232" y="26" width="10" height="3" fill="#4f8cff"/><text x="246" y="30" fill="#c9d1d9">GELU</text>
+      <rect x="288" y="26" width="10" height="3" fill="#d29922"/><text x="302" y="30" fill="#c9d1d9">SiLU</text>
+    </g>
+  </svg>
+  <div class="row" style="margin-top:4px">
+    <label>gate</label>
+    <input id="v11-gate" type="range" min="-4" max="4" step="0.1" value="1.5" style="width:150px" />
+    <span class="val" id="v11-gatev">1.5</span>
+    <label>up</label>
+    <input id="v11-up" type="range" min="-3" max="3" step="0.1" value="1.0" style="width:150px" />
+    <span class="val" id="v11-upv">1.0</span>
+  </div>
+  <p id="v11-swig" style="font-size:13px;color:#c9d1d9;margin:8px 0 0;font-family:ui-monospace,monospace"></p>
+</div>
+<script>
+(function () {
+  var svg = document.getElementById("v11-svg");
+  if (!svg) return;
+  // erf approximation (Abramowitz & Stegun 7.1.26)
+  function erf(x) {
+    var s = x < 0 ? -1 : 1; x = Math.abs(x);
+    var t = 1 / (1 + 0.3275911 * x);
+    var y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return s * y;
+  }
+  function sigmoid(x) { return 1 / (1 + Math.exp(-x)); }
+  function silu(x) { return x * sigmoid(x); }
+  function gelu(x) { return x * 0.5 * (1 + erf(x / Math.SQRT2)); }
+  // map x in [-4,4] -> px [20,340]; y in [-2,4] -> px [185,20] (y=0 at 150)
+  function px(x) { return 20 + (x + 4) / 8 * 320; }
+  function py(y) { return 150 - y * 45; }
+  function path(fn) {
+    var d = "";
+    for (var i = 0; i <= 80; i++) {
+      var x = -4 + i * 8 / 80;
+      d += (i === 0 ? "M" : "L") + px(x).toFixed(1) + "," + py(fn(x)).toFixed(1) + " ";
+    }
+    return d.trim();
+  }
+  document.getElementById("v11-gelu").setAttribute("d", path(gelu));
+  document.getElementById("v11-silu").setAttribute("d", path(silu));
+  var sg = document.getElementById("v11-gate"), su = document.getElementById("v11-up");
+  function renderSwig() {
+    var g = parseFloat(sg.value), u = parseFloat(su.value);
+    document.getElementById("v11-gatev").textContent = g.toFixed(1);
+    document.getElementById("v11-upv").textContent = u.toFixed(1);
+    var sg_ = silu(g), out = sg_ * u;
+    var col = out >= 0 ? "#2ea043" : "#f85149";
+    document.getElementById("v11-swig").innerHTML =
+      "SwiGLU = silu(" + g.toFixed(1) + ") · " + u.toFixed(1) +
+      " = <span style='color:#d29922'>" + sg_.toFixed(2) + "</span> · " + u.toFixed(1) +
+      " = <span style='color:" + col + "'>" + out.toFixed(2) + "</span>";
+  }
+  sg.addEventListener("input", renderSwig);
+  su.addEventListener("input", renderSwig);
+  renderSwig();
+})();
+</script>

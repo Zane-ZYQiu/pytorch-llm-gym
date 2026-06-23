@@ -1,0 +1,61 @@
+<div class="viz" id="viz12">
+  <h4>Interactive · inverted dropout</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    All cells start at 1. In <b>training</b> mode, each is zeroed with probability <code>p</code> and
+    survivors are scaled by <code>1/(1−p)</code> — so the mean stays ≈ 1. In <b>eval</b>, it's identity.
+  </p>
+  <div class="row">
+    <label><input id="v12-train" type="checkbox" checked /> training</label>
+    <label>p</label>
+    <input id="v12-p" type="range" min="0" max="0.9" step="0.05" value="0.5" style="width:180px" />
+    <span class="val" id="v12-pv">0.50</span>
+    <button id="v12-reroll" class="btn" style="padding:3px 9px">↻ resample mask</button>
+  </div>
+  <div id="v12-grid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:5px;margin-top:8px;max-width:360px"></div>
+  <p style="font-size:13px;color:#c9d1d9;margin:8px 0 0">
+    scale = <span class="val" id="v12-scale">2.00</span>
+    &nbsp;·&nbsp; mean(output) = <span class="val" id="v12-mean">1.00</span>
+    &nbsp;<span id="v12-mode" style="font-size:12px;color:#8b949e"></span>
+  </p>
+</div>
+<script>
+(function () {
+  var N = 32;
+  var mask = [];
+  var cb = document.getElementById("v12-train");
+  if (!cb) return;
+  var sp = document.getElementById("v12-p");
+  function reroll() { mask = []; for (var i = 0; i < N; i++) mask.push(Math.random()); }
+  function render() {
+    var training = cb.checked;
+    var p = parseFloat(sp.value);
+    document.getElementById("v12-pv").textContent = p.toFixed(2);
+    var scale = (p < 1) ? 1 / (1 - p) : 0;
+    var grid = document.getElementById("v12-grid");
+    grid.innerHTML = "";
+    var sum = 0;
+    for (var i = 0; i < N; i++) {
+      var keep = training ? (mask[i] >= p) : true;
+      var val = !training ? 1 : (keep ? scale : 0);
+      sum += val;
+      var cell = document.createElement("div");
+      var bg = (val === 0) ? "#161b22" : (training ? "#1f6feb" : "#2ea043");
+      var border = (val === 0) ? "#30363d" : (training ? "#4f8cff" : "#2ea043");
+      cell.style.cssText = "aspect-ratio:1;display:flex;align-items:center;justify-content:center;" +
+        "border-radius:5px;background:" + bg + ";border:1px solid " + border + ";" +
+        "font:11px ui-monospace,monospace;color:" + (val === 0 ? "#6e7681" : "#fff") + ";transition:all .12s";
+      cell.textContent = val === 0 ? "0" : val.toFixed(1);
+      grid.appendChild(cell);
+    }
+    document.getElementById("v12-scale").textContent = training ? scale.toFixed(2) : "1.00 (eval)";
+    document.getElementById("v12-mean").textContent = (sum / N).toFixed(2);
+    document.getElementById("v12-mode").textContent = training
+      ? "(zeroed survivors scaled up → expectation preserved)"
+      : "(identity — no drop, no scale)";
+  }
+  cb.addEventListener("change", render);
+  sp.addEventListener("input", render);
+  document.getElementById("v12-reroll").addEventListener("click", function () { reroll(); render(); });
+  reroll(); render();
+})();
+</script>

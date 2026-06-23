@@ -1,0 +1,77 @@
+<div class="viz" id="viz29">
+  <h4>Interactive · speculative decoding accept / resample</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Draft <b style="color:#d29922">q</b> proposes a token; target <b style="color:#4f8cff">p</b> verifies it.
+    Accept with prob <code>min(1, p/q)</code>; on reject, resample from the residual
+    <code>norm(max(p−q, 0))</code>. The net sampled distribution is exactly <b style="color:#4f8cff">p</b>.
+  </p>
+  <div class="row">
+    <button id="v29-reroll" class="btn" style="padding:4px 12px">↻ reroll p, q</button>
+  </div>
+  <div id="v29-bars" style="margin-top:8px"></div>
+  <div id="v29-stat" style="font:12px ui-monospace,monospace;color:#c9d1d9;margin-top:8px;line-height:1.7"></div>
+  <p id="v29-cap" style="font-size:12px;color:#8b949e;margin:8px 0 0"></p>
+</div>
+<script>
+(function () {
+  var barsEl = document.getElementById("v29-bars");
+  if (!barsEl) return;
+  var V = 5;
+  var toks = ["A", "B", "C", "D", "E"];
+  var p, q, draft;
+  function randDist() {
+    var x = []; for (var i = 0; i < V; i++) x.push(Math.random() * Math.random() + 0.02);
+    var s = x.reduce(function (a, b) { return a + b; }, 0);
+    return x.map(function (v) { return v / s; });
+  }
+  function sample(dist) {
+    var u = Math.random(), c = 0;
+    for (var i = 0; i < dist.length; i++) { c += dist[i]; if (u <= c) return i; }
+    return dist.length - 1;
+  }
+  function reroll() { p = randDist(); q = randDist(); draft = sample(q); }
+
+  function render() {
+    var residual = p.map(function (pv, i) { return Math.max(pv - q[i], 0); });
+    var rsum = residual.reduce(function (a, b) { return a + b; }, 0);
+    var residNorm = residual.map(function (v) { return rsum > 0 ? v / rsum : 0; });
+    var accProb = Math.min(1, p[draft] / q[draft]);
+
+    var maxv = 0;
+    [p, q, residNorm].forEach(function (d) { d.forEach(function (v) { if (v > maxv) maxv = v; }); });
+
+    function group(label, dist, color, highlight) {
+      var h = '<div style="margin:6px 0"><div style="font:11px ui-monospace,monospace;color:' + color + ';margin-bottom:3px">' + label + '</div>';
+      h += '<div style="display:flex;gap:8px;align-items:flex-end;height:64px">';
+      for (var i = 0; i < V; i++) {
+        var hl = highlight === i;
+        h += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">';
+        h += '<div style="font:9px ui-monospace,monospace;color:#8b949e">' + dist[i].toFixed(2) + '</div>';
+        h += '<div style="width:100%;height:' + (4 + dist[i] / maxv * 44).toFixed(0) + 'px;border-radius:4px 4px 0 0;background:' + color +
+          ';opacity:' + (highlight == null || hl ? "1" : "0.5") + ';box-shadow:' + (hl ? "0 0 0 2px #e6edf3" : "none") + '"></div>';
+        h += '<div style="font:10px ui-monospace,monospace;color:' + (hl ? "#e6edf3" : "#8b949e") + '">' + toks[i] + '</div>';
+        h += '</div>';
+      }
+      h += '</div></div>';
+      return h;
+    }
+    barsEl.innerHTML =
+      group("target p", p, "#4f8cff", null) +
+      group("draft q   (proposed: " + toks[draft] + ")", q, "#d29922", draft) +
+      group("residual  norm(max(p−q,0))", residNorm, "#2ea043", null);
+
+    document.getElementById("v29-stat").innerHTML =
+      '<div>draft sampled <b style="color:#d29922">' + toks[draft] + '</b> from q</div>' +
+      '<div>accept prob <b>min(1, p[' + toks[draft] + ']/q[' + toks[draft] + '])</b> = min(1, ' +
+        p[draft].toFixed(2) + '/' + q[draft].toFixed(2) + ') = <b style="color:' +
+        (accProb >= 1 ? "#2ea043" : "#d29922") + '">' + accProb.toFixed(2) + '</b></div>' +
+      '<div style="color:#8b949e">on reject → resample from the green residual distribution</div>';
+
+    document.getElementById("v29-cap").innerHTML =
+      'Accept-or-resample makes the final token marginal exactly <b style="color:#4f8cff">p</b>: ' +
+      'q·min(1,p/q) (accepted mass) + reject-mass·residual reconstructs p exactly — same output as running p alone, but cheaper.';
+  }
+  document.getElementById("v29-reroll").addEventListener("click", function () { reroll(); render(); });
+  reroll(); render();
+})();
+</script>

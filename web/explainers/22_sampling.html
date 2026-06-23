@@ -1,0 +1,118 @@
+<div class="viz" id="viz22">
+  <h4>Interactive · temperature / top-k / top-p</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Temperature reshapes the distribution (<code>softmax(logits/T)</code>); then top-k keeps a
+    <b>fixed count</b> and top-p keeps a <b>fixed cumulative mass</b>. Surviving tokens stay
+    <span style="color:#4f8cff">accent</span>; filtered-out tokens dim. Bars show the renormalised
+    sampling probabilities.
+  </p>
+  <div class="row">
+    <label>temperature</label>
+    <input id="v22-t" type="range" min="0.1" max="2" step="0.05" value="1" style="width:170px" />
+    <span class="val" id="v22-tv">1.00</span>
+  </div>
+  <div class="row">
+    <label>top_k</label>
+    <input id="v22-k" type="range" min="1" max="10" step="1" value="10" style="width:170px" />
+    <span class="val" id="v22-kv">10</span>
+  </div>
+  <div class="row">
+    <label>top_p</label>
+    <input id="v22-p" type="range" min="0.05" max="1" step="0.05" value="1" style="width:170px" />
+    <span class="val" id="v22-pv">1.00</span>
+  </div>
+  <div id="v22-bars" style="display:flex;align-items:flex-end;gap:8px;height:150px;margin-top:10px"></div>
+  <div id="v22-note" style="font-size:12px;color:#8b949e;margin-top:8px"></div>
+</div>
+<script>
+(function () {
+  // 10-token logits, descending then noisy
+  var baseLogits = [3.2, 2.6, 2.1, 1.7, 1.2, 0.8, 0.3, -0.2, -0.8, -1.5];
+  var labels = ["t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "t9"];
+  var V = baseLogits.length;
+  var tEl = document.getElementById("v22-t"), tv = document.getElementById("v22-tv");
+  var kEl = document.getElementById("v22-k"), kv = document.getElementById("v22-kv");
+  var pEl = document.getElementById("v22-p"), pv = document.getElementById("v22-pv");
+  var box = document.getElementById("v22-bars");
+  var note = document.getElementById("v22-note");
+
+  function softmax(xs) {
+    var m = -Infinity; xs.forEach(function (x) { if (x > m) m = x; });
+    var e = xs.map(function (x) { return x === -Infinity ? 0 : Math.exp(x - m); });
+    var s = e.reduce(function (a, b) { return a + b; }, 0);
+    return e.map(function (v) { return v / s; });
+  }
+
+  // top_k_filter: keep k largest logits, rest -> -inf (mirrors task.py)
+  function topKKeep(logits, k) {
+    var idx = logits.map(function (v, i) { return i; });
+    idx.sort(function (a, b) { return logits[b] - logits[a]; });
+    var keep = new Array(logits.length).fill(false);
+    for (var i = 0; i < Math.min(k, logits.length); i++) keep[idx[i]] = true;
+    return keep;
+  }
+
+  // top_p_filter: sort desc, softmax, cumsum, remove where cumulative-before exceeds p;
+  // always keep at least the top token (mirrors task.py logic).
+  function topPKeep(logits, p) {
+    var order = logits.map(function (v, i) { return i; });
+    order.sort(function (a, b) { return logits[b] - logits[a]; });
+    var sorted = order.map(function (i) { return logits[i]; });
+    var probs = softmax(sorted);
+    var keep = new Array(logits.length).fill(false);
+    var cum = 0;
+    for (var r = 0; r < order.length; r++) {
+      // remove if the cumulative mass BEFORE this token already reached p
+      var removeThis = cum > p;
+      if (r === 0) removeThis = false; // always keep the highest-probability token
+      if (!removeThis) keep[order[r]] = true;
+      cum += probs[r];
+    }
+    return keep;
+  }
+
+  function render() {
+    var T = parseFloat(tEl.value), k = parseInt(kEl.value, 10), p = parseFloat(pEl.value);
+    tv.textContent = T.toFixed(2); kv.textContent = k; pv.textContent = p.toFixed(2);
+
+    var scaled = baseLogits.map(function (x) { return x / T; });
+    var keepK = topKKeep(scaled, k);
+    var keepP = topPKeep(scaled, p);
+    var keep = keepK.map(function (v, i) { return v && keepP[i]; });
+
+    // probability after filtering: -inf for dropped, then softmax + renormalise
+    var filtered = scaled.map(function (x, i) { return keep[i] ? x : -Infinity; });
+    var finalP = softmax(filtered);
+    // full (pre-filter) probs for the dim bars, so you can see what got cut
+    var fullP = softmax(scaled);
+
+    box.innerHTML = "";
+    var maxBar = Math.max.apply(null, finalP.concat(fullP));
+    for (var i = 0; i < V; i++) {
+      var col = document.createElement("div");
+      col.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%";
+      var bar = document.createElement("div");
+      var on = keep[i];
+      var prob = on ? finalP[i] : fullP[i];
+      bar.style.cssText = "width:100%;border-radius:5px 5px 0 0;transition:height .12s,background .12s;" +
+        (on ? "background:linear-gradient(#4f8cff,#2563eb)" : "background:#2b3340;opacity:.7");
+      bar.style.height = (4 + (prob / maxBar) * 110) + "px";
+      var pct = document.createElement("div");
+      pct.style.cssText = "font:11px ui-monospace,monospace;margin-top:4px;color:" + (on ? "#ffd9a0" : "#5a6472");
+      pct.textContent = on ? (finalP[i] * 100).toFixed(0) + "%" : "—";
+      var lab = document.createElement("div");
+      lab.style.cssText = "font-size:11px;color:" + (on ? "#8b949e" : "#5a6472");
+      lab.textContent = labels[i];
+      col.appendChild(bar); col.appendChild(pct); col.appendChild(lab);
+      box.appendChild(col);
+    }
+    var kept = keep.filter(Boolean).length;
+    note.textContent = kept + " of " + V + " tokens survive · top-k cuts to a fixed count, top-p to a fixed cumulative mass (then renormalise).";
+  }
+
+  tEl.addEventListener("input", render);
+  kEl.addEventListener("input", render);
+  pEl.addEventListener("input", render);
+  render();
+})();
+</script>

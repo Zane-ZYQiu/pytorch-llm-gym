@@ -1,0 +1,83 @@
+<div class="viz" id="viz18">
+  <h4>Interactive · RoPE as a 2D rotation</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    RoPE rotates each <code>(x,y)</code> pair of <code>q</code>/<code>k</code> by an angle
+    <code>θ = pos · inv_freq</code>. Drag the query position <code>m</code>: both arrows rotate, but their
+    dot product <code>q·k</code> depends only on the gap <code>m−n</code>, not the absolute positions.
+  </p>
+  <div class="row">
+    <label>query pos m</label>
+    <input id="v18-m" type="range" min="0" max="8" step="1" value="3" style="width:180px" />
+    <span class="val" id="v18-mv">3</span>
+    <label style="margin-left:8px">key pos n</label>
+    <input id="v18-n" type="range" min="0" max="8" step="1" value="1" style="width:180px" />
+    <span class="val" id="v18-nv">1</span>
+  </div>
+  <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+    <svg id="v18-svg" viewBox="0 0 200 200" width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="100" cy="100" r="80" fill="none" stroke="#2b3340" stroke-width="1"/>
+      <line x1="20" y1="100" x2="180" y2="100" stroke="#2b3340" stroke-width="1"/>
+      <line x1="100" y1="20" x2="100" y2="180" stroke="#2b3340" stroke-width="1"/>
+      <defs>
+        <marker id="v18-aq" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#4f8cff"/></marker>
+        <marker id="v18-ak" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2ea043"/></marker>
+      </defs>
+      <line id="v18-q" x1="100" y1="100" x2="180" y2="100" stroke="#4f8cff" stroke-width="2.4" marker-end="url(#v18-aq)"/>
+      <line id="v18-k" x1="100" y1="100" x2="180" y2="100" stroke="#2ea043" stroke-width="2.4" marker-end="url(#v18-ak)"/>
+      <text x="184" y="96" font-family="ui-monospace,monospace" font-size="10" fill="#4f8cff">q</text>
+      <text x="184" y="112" font-family="ui-monospace,monospace" font-size="10" fill="#2ea043">k</text>
+    </svg>
+    <div style="font-size:13px;color:#c9d1d9;min-width:180px">
+      <div>θ<sub>q</sub> = m·f = <span class="val" id="v18-tq">—</span></div>
+      <div>θ<sub>k</sub> = n·f = <span class="val" id="v18-tk">—</span></div>
+      <div style="margin-top:8px">angle between = <b style="color:#d29922"><span id="v18-rel">—</span></b></div>
+      <div style="margin-top:6px">q·k = cos(θ<sub>q</sub>−θ<sub>k</sub>) = <b style="color:#d29922"><span id="v18-dot">—</span></b></div>
+      <div style="margin-top:8px;font-size:12px;color:#8b949e" id="v18-note"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var sm = document.getElementById("v18-m");
+  if (!sm) return;
+  var sn = document.getElementById("v18-n");
+  var mv = document.getElementById("v18-mv");
+  var nv = document.getElementById("v18-nv");
+  var qel = document.getElementById("v18-q");
+  var kel = document.getElementById("v18-k");
+  var tqEl = document.getElementById("v18-tq");
+  var tkEl = document.getElementById("v18-tk");
+  var relEl = document.getElementById("v18-rel");
+  var dotEl = document.getElementById("v18-dot");
+  var noteEl = document.getElementById("v18-note");
+  var FREQ = 0.55; // inv_freq for the single illustrated pair (radians per position)
+  var CX = 100, CY = 100, R = 80;
+
+  function setArrow(el, theta) {
+    // SVG y is down, so negate to rotate counter-clockwise visually
+    var x = CX + R * Math.cos(theta);
+    var y = CY - R * Math.sin(theta);
+    el.setAttribute("x2", x.toFixed(2));
+    el.setAttribute("y2", y.toFixed(2));
+  }
+
+  function render() {
+    var m = parseInt(sm.value, 10);
+    var n = parseInt(sn.value, 10);
+    mv.textContent = m; nv.textContent = n;
+    var tq = m * FREQ, tk = n * FREQ;
+    setArrow(qel, tq);
+    setArrow(kel, tk);
+    tqEl.textContent = tq.toFixed(2);
+    tkEl.textContent = tk.toFixed(2);
+    var rel = tq - tk; // depends only on (m-n)
+    relEl.textContent = "(m−n)·f = " + (m - n) + "·" + FREQ.toFixed(2) + " = " + rel.toFixed(2);
+    dotEl.textContent = Math.cos(rel).toFixed(3);
+    noteEl.textContent = "Move m and n keeping m−n=" + (m - n) +
+      " fixed → q·k stays " + Math.cos(rel).toFixed(3) + ". Relative position only.";
+  }
+  sm.addEventListener("input", render);
+  sn.addEventListener("input", render);
+  render();
+})();
+</script>

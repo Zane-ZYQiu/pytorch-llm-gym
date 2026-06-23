@@ -1,0 +1,107 @@
+<div class="viz" id="viz08">
+  <h4>Interactive · cross-entropy gradient</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    softmax turns logits into probabilities <code>p</code>; the target is one-hot.
+    The gradient w.r.t. logits is just <code>grad = p − onehot</code>. Drag a logit and watch both update.
+  </p>
+  <div class="row">
+    <label>logit[<span id="v08-idx">0</span>]</label>
+    <input id="v08-l" type="range" min="-4" max="4" step="0.1" value="2" style="width:220px" />
+    <span class="val" id="v08-lv">2.0</span>
+    <button id="v08-pick" class="btn" style="padding:3px 9px">↻ move slider to next token</button>
+  </div>
+  <div class="row" style="margin-top:2px">
+    <label>target =</label><span class="val" id="v08-tgt">tok B</span>
+  </div>
+  <div style="display:flex;gap:22px;flex-wrap:wrap;margin-top:6px">
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">softmax p (vs one-hot ▏)</div>
+      <div id="v08-probs" style="display:flex;align-items:flex-end;gap:10px;height:120px"></div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">grad = p − onehot</div>
+      <div id="v08-grads" style="display:flex;align-items:center;gap:10px;height:120px"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var logits = [1.0, 2.0, 0.5, -1.0];
+  var labels = ["tok A", "tok B", "tok C", "tok D"];
+  var target = 1;       // one-hot target index
+  var cur = 0;          // which logit the slider controls
+  var slider = document.getElementById("v08-l");
+  if (!slider) return;
+  function softmax(xs) {
+    var m = Math.max.apply(null, xs);
+    var e = xs.map(function (x) { return Math.exp(x - m); });
+    var s = e.reduce(function (a, b) { return a + b; }, 0);
+    return e.map(function (v) { return v / s; });
+  }
+  function bar(h, grad, mid) {
+    var col = document.createElement("div");
+    col.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%";
+    return col;
+  }
+  function render() {
+    document.getElementById("v08-idx").textContent = cur;
+    document.getElementById("v08-lv").textContent = logits[cur].toFixed(1);
+    document.getElementById("v08-tgt").textContent = labels[target];
+    var p = softmax(logits);
+    var pb = document.getElementById("v08-probs"); pb.innerHTML = "";
+    var gb = document.getElementById("v08-grads"); gb.innerHTML = "";
+    p.forEach(function (prob, i) {
+      // probability column with one-hot marker
+      var col = document.createElement("div");
+      col.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative;min-width:40px";
+      var bar = document.createElement("div");
+      var hot = (i === target) ? "#2ea043" : "#4f8cff";
+      bar.style.cssText = "width:70%;border-radius:5px 5px 0 0;background:" + hot + ";transition:height .1s";
+      bar.style.height = (4 + prob * 90) + "px";
+      if (i === cur) bar.style.outline = "2px solid #d29922";
+      // one-hot reference line
+      var oh = document.createElement("div");
+      var ohv = (i === target) ? 90 : 0;
+      oh.style.cssText = "position:absolute;left:8%;width:84%;border-top:2px dashed #8b949e;bottom:" + (4 + ohv) + "px";
+      var v = document.createElement("div");
+      v.style.cssText = "font:11px ui-monospace,monospace;color:#ffd9a0;margin-top:3px";
+      v.textContent = prob.toFixed(2);
+      var lab = document.createElement("div");
+      lab.style.cssText = "font-size:10px;color:#8b949e";
+      lab.textContent = labels[i];
+      col.appendChild(oh); col.appendChild(bar); col.appendChild(v); col.appendChild(lab);
+      pb.appendChild(col);
+      // gradient column (signed, around a midline)
+      var g = prob - (i === target ? 1 : 0);
+      var gc = document.createElement("div");
+      gc.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-width:40px";
+      var wrap = document.createElement("div");
+      wrap.style.cssText = "position:relative;width:100%;height:90px;display:flex;flex-direction:column;align-items:center;justify-content:center";
+      var line = document.createElement("div");
+      line.style.cssText = "position:absolute;top:50%;left:0;right:0;border-top:1px solid #2b3340";
+      var gbar = document.createElement("div");
+      var col2 = g < 0 ? "#2ea043" : "#f85149";
+      var hpx = Math.min(40, Math.abs(g) * 45);
+      gbar.style.cssText = "position:absolute;left:25%;width:50%;background:" + col2 + ";" +
+        (g < 0 ? ("top:50%;height:" + hpx + "px;border-radius:0 0 4px 4px") : ("bottom:50%;height:" + hpx + "px;border-radius:4px 4px 0 0"));
+      wrap.appendChild(line); wrap.appendChild(gbar);
+      var gv = document.createElement("div");
+      gv.style.cssText = "font:11px ui-monospace,monospace;color:" + col2 + ";margin-top:3px";
+      gv.textContent = (g >= 0 ? "+" : "") + g.toFixed(2);
+      var lab2 = document.createElement("div");
+      lab2.style.cssText = "font-size:10px;color:#8b949e";
+      lab2.textContent = labels[i];
+      gc.appendChild(wrap); gc.appendChild(gv); gc.appendChild(lab2);
+      gb.appendChild(gc);
+    });
+  }
+  slider.addEventListener("input", function () { logits[cur] = parseFloat(slider.value); render(); });
+  document.getElementById("v08-pick").addEventListener("click", function () {
+    cur = (cur + 1) % logits.length;
+    slider.value = logits[cur];
+    render();
+  });
+  slider.value = logits[cur];
+  render();
+})();
+</script>

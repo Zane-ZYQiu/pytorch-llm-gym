@@ -1,0 +1,69 @@
+<div class="viz" id="viz13">
+  <h4>Interactive · attention weights</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Each row = one query; each cell = how much it attends to a key (after
+    <code>softmax(QKᵀ/√d)</code>). Rows sum to 1. Toggle the causal mask to
+    forbid looking at future positions (upper triangle → 0).
+  </p>
+  <div class="row">
+    <label><input id="v13-causal" type="checkbox" /> causal mask</label>
+    <button id="v13-reroll" class="btn" style="padding:3px 9px">↻ new Q,K</button>
+  </div>
+  <div id="v13-grid" style="margin-top:8px"></div>
+</div>
+<script>
+(function () {
+  var T = 5, d = 4;
+  var Q, K;
+  function randn() { return (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 1.2; }
+  function reroll() {
+    Q = []; K = [];
+    for (var i = 0; i < T; i++) { Q.push([]); K.push([]); for (var j = 0; j < d; j++) { Q[i].push(randn()); K[i].push(randn()); } }
+  }
+  function softmaxRow(xs) {
+    var m = -Infinity; xs.forEach(function (v) { if (v > m) m = v; });
+    var e = xs.map(function (v) { return v === -Infinity ? 0 : Math.exp(v - m); });
+    var s = e.reduce(function (a, b) { return a + b; }, 0);
+    return e.map(function (v) { return v / s; });
+  }
+  function color(w) {
+    // blue scale 0..1
+    var a = 0.08 + 0.92 * w;
+    return "rgba(79,140,255," + a.toFixed(3) + ")";
+  }
+  function render() {
+    var causal = document.getElementById("v13-causal").checked;
+    var grid = document.getElementById("v13-grid");
+    var rows = [];
+    for (var i = 0; i < T; i++) {
+      var scores = [];
+      for (var j = 0; j < T; j++) {
+        var dot = 0; for (var k = 0; k < d; k++) dot += Q[i][k] * K[j][k];
+        var s = dot / Math.sqrt(d);
+        if (causal && j > i) s = -Infinity;
+        scores.push(s);
+      }
+      rows.push(softmaxRow(scores));
+    }
+    var html = '<table style="border-collapse:collapse;font:12px ui-monospace,monospace">';
+    html += '<tr><td></td>';
+    for (var j = 0; j < T; j++) html += '<td style="color:#8b949e;text-align:center;padding:3px 6px">k' + j + '</td>';
+    html += '</tr>';
+    for (var i = 0; i < T; i++) {
+      html += '<tr><td style="color:#8b949e;padding:3px 6px">q' + i + '</td>';
+      for (var j = 0; j < T; j++) {
+        var w = rows[i][j];
+        html += '<td style="width:46px;height:30px;text-align:center;background:' + color(w) +
+          ';border:1px solid #0d1117;color:' + (w > 0.5 ? "#fff" : "#c9d1d9") + '">' +
+          (w < 0.005 ? "0" : w.toFixed(2)) + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+    grid.innerHTML = html;
+  }
+  document.getElementById("v13-causal").addEventListener("change", render);
+  document.getElementById("v13-reroll").addEventListener("click", function () { reroll(); render(); });
+  reroll(); render();
+})();
+</script>

@@ -1,0 +1,149 @@
+<div class="viz" id="viz24">
+  <h4>Interactive · beam search</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Each step every surviving beam expands its top children; we collect all candidates, sort by
+    <b>cumulative log-prob</b>, and keep the best <code>num_beams</code>.
+    <span style="color:#4f8cff">Kept</span> beams advance; <span style="color:#8b949e">pruned</span> ones dim out.
+  </p>
+  <div class="row">
+    <label>num_beams</label>
+    <input id="v24-b" type="range" min="1" max="4" step="1" value="2" style="width:170px" />
+    <span class="val" id="v24-bv">2</span>
+    <button id="v24-step" class="btn" style="padding:3px 9px">▶ next step</button>
+    <button id="v24-reset" class="btn" style="padding:3px 9px">reset</button>
+  </div>
+  <svg id="v24-svg" viewBox="0 0 560 300" width="100%" height="300" xmlns="http://www.w3.org/2000/svg" style="margin-top:8px"></svg>
+  <div id="v24-note" style="font-size:12px;color:#8b949e;margin-top:6px"></div>
+</div>
+<script>
+(function () {
+  var bEl = document.getElementById("v24-b"), bv = document.getElementById("v24-bv");
+  var svg = document.getElementById("v24-svg");
+  var note = document.getElementById("v24-note");
+  var vocab = ["A", "B", "C", "D"];
+  var V = vocab.length;
+  var MAXLEN = 4;
+
+  // deterministic "model": log-probs of next token given current sequence
+  function nextLogprobs(seq) {
+    var logits = [];
+    for (var t = 0; t < V; t++) {
+      // pseudo-random but stable in the sequence + token
+      var h = 0, key = seq.join(",") + ">" + t;
+      for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 1000;
+      logits.push((h / 1000) * 3);
+    }
+    // softmax -> log
+    var m = Math.max.apply(null, logits);
+    var e = logits.map(function (x) { return Math.exp(x - m); });
+    var s = e.reduce(function (a, b) { return a + b; }, 0);
+    return e.map(function (v) { return Math.log(v / s); });
+  }
+
+  var levels = []; // levels[d] = array of {tokens, score, kept, parent}
+  var numBeams = 2;
+
+  function reset() {
+    numBeams = parseInt(bEl.value, 10);
+    bv.textContent = numBeams;
+    // level 0: single start beam
+    levels = [[{ tokens: ["·"], score: 0, kept: true, parent: -1 }]];
+    draw();
+  }
+
+  function stepOnce() {
+    var depth = levels.length - 1;
+    if (depth >= MAXLEN) return;
+    var prev = levels[depth];
+    var survivors = prev.filter(function (b) { return b.kept; });
+    var cands = [];
+    survivors.forEach(function (beam, pi) {
+      var realParentIdx = prev.indexOf(beam);
+      var lp = nextLogprobs(beam.tokens);
+      // each beam takes its top-(numBeams) expansions (mirrors task.py)
+      var idx = lp.map(function (v, i) { return i; });
+      idx.sort(function (a, b) { return lp[b] - lp[a]; });
+      for (var c = 0; c < Math.min(numBeams, V); c++) {
+        var tk = idx[c];
+        cands.push({
+          tokens: beam.tokens.concat(vocab[tk]),
+          score: beam.score + lp[tk],
+          kept: false,
+          parent: realParentIdx
+        });
+      }
+    });
+    // collect all, sort by score, keep top num_beams
+    cands.sort(function (a, b) { return b.score - a.score; });
+    for (var i = 0; i < cands.length; i++) cands[i].kept = (i < numBeams);
+    levels.push(cands);
+    draw();
+  }
+
+  function draw() {
+    var W = 560, padT = 16, padB = 16;
+    var nLevels = levels.length;
+    var colW = W / (MAXLEN + 1);
+    var html = '';
+    // precompute node positions
+    var pos = [];
+    for (var d = 0; d < nLevels; d++) {
+      pos[d] = [];
+      var arr = levels[d];
+      var n = arr.length;
+      var H = 300;
+      var usable = H - padT - padB;
+      for (var i = 0; i < n; i++) {
+        var x = colW * d + colW / 2;
+        var y = padT + (n === 1 ? usable / 2 : (i / (n - 1)) * usable);
+        pos[d][i] = { x: x, y: y };
+      }
+    }
+    // edges from parent (previous level) to child
+    for (var d2 = 1; d2 < nLevels; d2++) {
+      levels[d2].forEach(function (beam, i) {
+        if (beam.parent < 0) return;
+        var p = pos[d2 - 1][beam.parent];
+        var c = pos[d2][i];
+        if (!p || !c) return;
+        var on = beam.kept;
+        html += '<path d="M' + p.x + ',' + p.y + ' C' + ((p.x + c.x) / 2) + ',' + p.y + ' ' + ((p.x + c.x) / 2) + ',' + c.y + ' ' + c.x + ',' + c.y + '" fill="none" stroke="' + (on ? "#4f8cff" : "#2b3340") + '" stroke-width="' + (on ? 1.8 : 1) + '"/>';
+      });
+    }
+    // nodes
+    for (var d3 = 0; d3 < nLevels; d3++) {
+      levels[d3].forEach(function (beam, i) {
+        var pt = pos[d3][i];
+        var on = beam.kept;
+        var fill = on ? "#1c2330" : "#161b22";
+        var stroke = on ? "#4f8cff" : "#2b3340";
+        var txtColor = on ? "#e6edf3" : "#5a6472";
+        var label = beam.tokens.join("");
+        html += '<circle cx="' + pt.x + '" cy="' + pt.y + '" r="14" fill="' + fill + '" stroke="' + stroke + '" stroke-width="1.5"/>';
+        html += '<text x="' + pt.x + '" y="' + (pt.y + 4) + '" text-anchor="middle" font-family="ui-monospace,monospace" font-size="11" fill="' + txtColor + '">' + label + '</text>';
+        if (d3 > 0) {
+          html += '<text x="' + pt.x + '" y="' + (pt.y + 26) + '" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9" fill="' + (on ? "#ffd9a0" : "#5a6472") + '">' + beam.score.toFixed(2) + '</text>';
+        }
+      });
+    }
+    svg.innerHTML = html;
+
+    // note: best surviving beam
+    var last = levels[nLevels - 1];
+    var best = null;
+    last.forEach(function (b) { if (b.kept && (!best || b.score > best.score)) best = b; });
+    if (nLevels - 1 >= MAXLEN) {
+      note.textContent = "Done (max_len). Best sequence: " + best.tokens.join("") + "  (logP " + best.score.toFixed(2) + ").";
+    } else if (best && nLevels > 1) {
+      note.textContent = "Depth " + (nLevels - 1) + " · kept " + last.filter(function (b) { return b.kept; }).length + " beams · best so far " + best.tokens.join("") + " (" + best.score.toFixed(2) + ").";
+    } else {
+      note.textContent = "Start beam. Press “next step” to expand one level.";
+    }
+  }
+
+  bEl.addEventListener("input", reset);
+  document.getElementById("v24-step").addEventListener("click", stepOnce);
+  document.getElementById("v24-reset").addEventListener("click", reset);
+  reset();
+})();
+</script>

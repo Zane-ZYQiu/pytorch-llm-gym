@@ -1,0 +1,75 @@
+<div class="viz" id="viz06">
+  <h4>Diagram · linear layer forward & backward</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    <code>y = x·Wᵀ + b</code>. The forward maps <code>(B,in)·(in,out) → (B,out)</code>.
+    Hover a gradient row to highlight which tensors flow into it.
+  </p>
+  <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+    <svg id="v06-svg" viewBox="0 0 280 150" width="280" height="150" xmlns="http://www.w3.org/2000/svg">
+      <g font-family="ui-monospace,monospace" font-size="11" text-anchor="middle">
+        <g class="v06t" data-k="x"><rect x="6" y="55" width="56" height="38" rx="6"/><text x="34" y="72">x</text><text x="34" y="86" fill="#8b949e">(B,in)</text></g>
+        <text x="76" y="78" fill="#8b949e">·</text>
+        <g class="v06t" data-k="W"><rect x="88" y="55" width="62" height="38" rx="6"/><text x="119" y="72">Wᵀ</text><text x="119" y="86" fill="#8b949e">(in,out)</text></g>
+        <text x="164" y="78" fill="#8b949e">+</text>
+        <g class="v06t" data-k="b"><rect x="176" y="55" width="52" height="38" rx="6"/><text x="202" y="72">b</text><text x="202" y="86" fill="#8b949e">(out,)</text></g>
+        <text x="242" y="78" fill="#8b949e">=</text>
+        <g class="v06t" data-k="y"><rect x="252" y="55" width="24" height="38" rx="6"/><text x="264" y="72">y</text></g>
+        <text x="140" y="125" fill="#8b949e">y shape (B,out)</text>
+      </g>
+    </svg>
+    <div style="flex:1;min-width:240px">
+      <div class="v06g" data-k="x" style="cursor:pointer;padding:7px 9px;border-radius:7px;border:1px solid #2b3340;margin-bottom:7px">
+        <code style="color:#ffd9a0">grad_x = grad_out @ W</code>
+        <span style="color:#8b949e;font-size:12px"> → (B,in)</span>
+      </div>
+      <div class="v06g" data-k="W" style="cursor:pointer;padding:7px 9px;border-radius:7px;border:1px solid #2b3340;margin-bottom:7px">
+        <code style="color:#ffd9a0">grad_W = grad_outᵀ @ x</code>
+        <span style="color:#8b949e;font-size:12px"> → (out,in)</span>
+      </div>
+      <div class="v06g" data-k="b" style="cursor:pointer;padding:7px 9px;border-radius:7px;border:1px solid #2b3340">
+        <code style="color:#ffd9a0">grad_b = grad_out.sum(0)</code>
+        <span style="color:#8b949e;font-size:12px"> → (out,)</span>
+      </div>
+    </div>
+  </div>
+  <p id="v06-cap" style="font-size:13px;color:#c9d1d9;margin:10px 0 0;min-height:34px">
+    <b style="color:#4f8cff">Three lines of backward.</b> Each gradient is just a matmul (or a sum) of the upstream
+    gradient <code>grad_out</code> with the saved inputs. Hover one to trace it.
+  </p>
+</div>
+<script>
+(function () {
+  var svg = document.getElementById("v06-svg");
+  if (!svg) return;
+  var caps = {
+    x: "<b style='color:#4f8cff'>grad_x.</b> Push the upstream gradient back through W: <code>grad_out @ W</code>. Shapes: (B,out)·(out,in) → (B,in) — same shape as x.",
+    W: "<b style='color:#4f8cff'>grad_W.</b> Outer-product of the upstream gradient with the inputs: <code>grad_outᵀ @ x</code>. Shapes: (out,B)·(B,in) → (out,in) — same shape as W.",
+    b: "<b style='color:#4f8cff'>grad_b.</b> The bias is added to every row, so its gradient sums grad_out over the batch dim: <code>grad_out.sum(0)</code> → (out,)."
+  };
+  var deps = { x: ["W", "y"], W: ["x", "y"], b: ["y"] };
+  var def = document.getElementById("v06-cap").innerHTML;
+  var boxes = {};
+  svg.querySelectorAll(".v06t").forEach(function (g) {
+    var r = g.querySelector("rect");
+    r.setAttribute("fill", "#1c2330"); r.setAttribute("stroke", "#4f8cff"); r.setAttribute("stroke-width", "1.4");
+    g.querySelector("text").setAttribute("fill", "#e6edf3");
+    boxes[g.dataset.k] = r;
+  });
+  function clear() {
+    for (var k in boxes) boxes[k].setAttribute("fill", "#1c2330");
+    document.getElementById("v06-cap").innerHTML = def;
+  }
+  document.querySelectorAll("#viz06 .v06g").forEach(function (row) {
+    row.addEventListener("mouseenter", function () {
+      var k = row.dataset.k;
+      row.style.borderColor = "#4f8cff";
+      (deps[k] || []).forEach(function (t) { if (boxes[t]) boxes[t].setAttribute("fill", "#2a3550"); });
+      document.getElementById("v06-cap").innerHTML = caps[k];
+    });
+    row.addEventListener("mouseleave", function () {
+      row.style.borderColor = "#2b3340";
+      clear();
+    });
+  });
+})();
+</script>

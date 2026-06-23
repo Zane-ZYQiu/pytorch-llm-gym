@@ -1,0 +1,97 @@
+<div class="viz" id="viz05">
+  <h4>Interactive · autograd graph for f(x)=sum(x²)</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Forward (blue, →): <code>x → x² → sum = f</code>. Backward (yellow, ←): <code>loss.backward()</code> sends
+    <code>∂f/∂f=1</code> back through each node, giving <code>∂f/∂xᵢ = 2·xᵢ</code>. Drag a slider and watch both the
+    forward output and the gradient labels update.
+  </p>
+  <div class="row" id="v05-sliders"></div>
+  <svg id="v05-svg" viewBox="0 0 560 230" width="100%" style="max-width:560px;margin-top:6px" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="v05-fwd" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#4f8cff"/>
+      </marker>
+      <marker id="v05-bwd" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#d29922"/>
+      </marker>
+    </defs>
+    <!-- forward edges (left to right) -->
+    <line x1="120" y1="100" x2="232" y2="100" stroke="#4f8cff" stroke-width="1.6" marker-end="url(#v05-fwd)"/>
+    <line x1="352" y1="100" x2="438" y2="100" stroke="#4f8cff" stroke-width="1.6" marker-end="url(#v05-fwd)"/>
+    <!-- backward edges (right to left, offset below) -->
+    <line x1="438" y1="150" x2="352" y2="150" stroke="#d29922" stroke-width="1.4" marker-end="url(#v05-bwd)" stroke-dasharray="4 3"/>
+    <line x1="232" y1="150" x2="120" y2="150" stroke="#d29922" stroke-width="1.4" marker-end="url(#v05-bwd)" stroke-dasharray="4 3"/>
+    <g font-family="ui-monospace,monospace" font-size="12" text-anchor="middle">
+      <!-- x node -->
+      <rect x="40" y="74" width="78" height="52" rx="8" fill="#1c2330" stroke="#4f8cff" stroke-width="1.4"/>
+      <text x="79" y="92" fill="#8b949e" font-size="11">x</text>
+      <text x="79" y="112" fill="#e6edf3" id="v05-xval">[ ]</text>
+      <!-- square node -->
+      <rect x="234" y="74" width="116" height="52" rx="8" fill="#1c2330" stroke="#4f8cff" stroke-width="1.4"/>
+      <text x="292" y="92" fill="#8b949e" font-size="11">square: x²</text>
+      <text x="292" y="112" fill="#e6edf3" id="v05-sqval">[ ]</text>
+      <!-- sum node -->
+      <rect x="440" y="74" width="96" height="52" rx="8" fill="#1c2330" stroke="#2ea043" stroke-width="1.6"/>
+      <text x="488" y="92" fill="#8b949e" font-size="11">sum = f</text>
+      <text x="488" y="112" fill="#7ee787" id="v05-fval">0</text>
+      <!-- forward label -->
+      <text x="176" y="92" fill="#4f8cff" font-size="11">x²</text>
+      <text x="395" y="92" fill="#4f8cff" font-size="11">Σ</text>
+      <!-- backward grad labels -->
+      <text x="395" y="168" fill="#d29922" font-size="11">∂f/∂(x²)=1</text>
+      <text x="176" y="168" fill="#d29922" font-size="11" id="v05-gradlabel">∂f/∂x=2x</text>
+      <text x="488" y="168" fill="#d29922" font-size="11">1</text>
+    </g>
+  </svg>
+  <div id="v05-gradvec" style="font:12px var(--mono,ui-monospace,monospace);color:#ffd9a0;margin-top:4px"></div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz05");
+  if (!root) return;
+  var svg = root.querySelector("#v05-svg");
+  var slBox = root.querySelector("#v05-sliders");
+  if (!svg || !slBox) return;
+
+  var x = [1.5, -1.0, 0.5];
+  var xvalEl = root.querySelector("#v05-xval");
+  var sqEl = root.querySelector("#v05-sqval");
+  var fEl = root.querySelector("#v05-fval");
+  var gradVec = root.querySelector("#v05-gradvec");
+
+  // build sliders once (idempotent)
+  if (!slBox.dataset.built) {
+    for (var i = 0; i < x.length; i++) {
+      (function (i) {
+        var wrap = document.createElement("span");
+        wrap.style.cssText = "display:flex;align-items:center;gap:6px";
+        var lab = document.createElement("label");
+        lab.textContent = "x" + i;
+        var s = document.createElement("input");
+        s.type = "range"; s.min = "-3"; s.max = "3"; s.step = "0.1"; s.value = String(x[i]);
+        s.style.width = "110px";
+        s.className = "v05-slider";
+        s.dataset.i = String(i);
+        s.addEventListener("input", function () { x[i] = parseFloat(s.value); render(); });
+        wrap.appendChild(lab); wrap.appendChild(s);
+        slBox.appendChild(wrap);
+      })(i);
+    }
+    slBox.dataset.built = "1";
+  }
+
+  function fmt(arr) { return "[" + arr.map(function (v) { return v.toFixed(1); }).join(", ") + "]"; }
+  function render() {
+    var sq = x.map(function (v) { return v * v; });               // forward: x²
+    var f = sq.reduce(function (a, b) { return a + b; }, 0);        // forward: sum
+    var grad = x.map(function (v) { return 2 * v; });              // backward: df/dx = 2x
+    if (xvalEl) xvalEl.textContent = fmt(x);
+    if (sqEl) sqEl.textContent = fmt(sq);
+    if (fEl) fEl.textContent = f.toFixed(2);
+    var gl = root.querySelector("#v05-gradlabel");
+    if (gl) gl.textContent = "∂f/∂x = 2x = " + fmt(grad);
+    if (gradVec) gradVec.textContent = "x.grad = 2·x = " + fmt(grad) + "   (matches numerical check)";
+  }
+  render();
+})();
+</script>

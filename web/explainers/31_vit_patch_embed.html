@@ -1,0 +1,126 @@
+<div class="viz" id="viz31">
+  <h4>Interactive · ViT patch embedding</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    An <b>8×8</b> image is cut into non-overlapping <code>p×p</code> patches (row-major). Each patch is
+    flattened to a length-<code>C·p·p</code> vector and linearly projected to a <code>D</code>-dim token. A
+    learnable <b>[CLS]</b> token is prepended → sequence of <code>N+1</code> tokens. Hover a patch to find its token.
+  </p>
+  <div class="row">
+    <label>Patch size <code>p</code></label>
+    <input id="v31-p" type="range" min="0" max="1" step="1" value="0" style="width:120px" />
+    <span class="val" id="v31-pv">2</span>
+    <span style="color:#8b949e;font-size:12px">→ grid <span class="val" id="v31-grid">4×4</span>, <span class="val" id="v31-n">N=16</span> patches</span>
+  </div>
+  <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-top:6px">
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">image (C=3, 8×8) — patch grid</div>
+      <canvas id="v31-img" width="176" height="176" style="border-radius:8px;border:1px solid #2b3340;image-rendering:pixelated"></canvas>
+    </div>
+    <div style="flex:1;min-width:240px">
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">token sequence (each box = one D-dim token)</div>
+      <div id="v31-seq" style="display:flex;flex-wrap:wrap;gap:5px;align-items:flex-start"></div>
+      <div id="v31-cap" style="font-size:12.5px;color:#c9d1d9;margin-top:10px;min-height:34px">
+        <b style="color:#4f8cff">patchify → linear projection.</b> token<sub>0</sub> = CLS;
+        token<sub>k</sub> = patch<sub>k−1</sub> flattened (C·p·p) then projected by <code>proj (C·p·p, D)</code>.
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz31");
+  if (!root) return;
+  var IMG = 8, PX = 22;           // 8x8 logical image, 22px per pixel on canvas
+  var PSIZES = [2, 4];
+  var pix = [];                   // grayscale-ish base value per cell (checker + gradient)
+  for (var y = 0; y < IMG; y++) { pix.push([]); for (var x = 0; x < IMG; x++) {
+    var grad = (x + y) / (2 * (IMG - 1));               // 0..1 diagonal gradient
+    var checker = ((x >> 1) + (y >> 1)) & 1 ? 0.18 : 0;  // soft 2x2 checker
+    pix[y].push(Math.max(0, Math.min(1, grad * 0.85 + checker)));
+  } }
+  var cv = root.querySelector("#v31-img"), ctx = cv.getContext("2d");
+  var slider = root.querySelector("#v31-p");
+  var pv = root.querySelector("#v31-pv"), gridv = root.querySelector("#v31-grid"), nv = root.querySelector("#v31-n");
+  var seqBox = root.querySelector("#v31-seq"), cap = root.querySelector("#v31-cap");
+  var defCap = cap.innerHTML;
+  var hot = -1; // hovered patch index
+
+  function cellColor(v) {
+    var r = Math.round(40 + v * 120), g = Math.round(90 + v * 150), b = Math.round(150 + v * 90);
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+  function drawImage(p) {
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (var y = 0; y < IMG; y++) for (var x = 0; x < IMG; x++) {
+      ctx.fillStyle = cellColor(pix[y][x]);
+      ctx.fillRect(x * PX, y * PX, PX, PX);
+    }
+    var nh = IMG / p;
+    // patch borders
+    for (var py = 0; py < nh; py++) for (var px2 = 0; px2 < nh; px2++) {
+      var idx = py * nh + px2;
+      var X = px2 * p * PX, Y = py * p * PX, S = p * PX;
+      ctx.lineWidth = idx === hot ? 3 : 1.4;
+      ctx.strokeStyle = idx === hot ? "#d29922" : "#0d1117";
+      ctx.strokeRect(X + 0.5, Y + 0.5, S - 1, S - 1);
+      if (idx === hot) { ctx.fillStyle = "rgba(210,153,34,0.22)"; ctx.fillRect(X, Y, S, S); }
+    }
+  }
+  function render() {
+    var p = PSIZES[parseInt(slider.value, 10) || 0];
+    pv.textContent = p;
+    var nh = IMG / p, N = nh * nh, dim = 3 * p * p;
+    gridv.textContent = nh + "×" + nh;
+    nv.textContent = "N=" + N;
+    drawImage(p);
+    // build sequence: CLS + N patch tokens
+    seqBox.innerHTML = "";
+    function tok(label, kind, idx) {
+      var d = document.createElement("div");
+      var accent = kind === "cls" ? "#2ea043" : "#4f8cff";
+      d.style.cssText = "min-width:30px;text-align:center;padding:6px 4px;border-radius:6px;font:11px ui-monospace,monospace;" +
+        "background:#0b1020;border:1px solid " + accent + ";color:#e6edf3;cursor:default;transition:transform .1s,box-shadow .1s";
+      d.innerHTML = label;
+      if (kind === "patch") {
+        d.dataset.idx = idx;
+        d.addEventListener("mouseenter", function () { setHot(idx); });
+        d.addEventListener("mouseleave", function () { setHot(-1); });
+      }
+      seqBox.appendChild(d);
+      return d;
+    }
+    tok("CLS", "cls", -1);
+    for (var i = 0; i < N; i++) tok("p" + i, "patch", i);
+    highlight();
+    cap.innerHTML = defCap +
+      "<br><span style='color:#8b949e'>here C=3, p=" + p + " → flatten dim = 3·" + p + "·" + p + " = " + dim +
+      "; sequence length = N+1 = " + (N + 1) + " tokens.</span>";
+  }
+  function highlight() {
+    seqBox.querySelectorAll("[data-idx]").forEach(function (el) {
+      var on = parseInt(el.dataset.idx, 10) === hot;
+      el.style.background = on ? "#2a2410" : "#0b1020";
+      el.style.borderColor = on ? "#d29922" : "#4f8cff";
+      el.style.transform = on ? "translateY(-2px)" : "none";
+      el.style.boxShadow = on ? "0 2px 8px rgba(210,153,34,0.35)" : "none";
+    });
+  }
+  function setHot(i) {
+    hot = i;
+    var p = PSIZES[parseInt(slider.value, 10) || 0];
+    drawImage(p); highlight();
+  }
+  // hover over canvas → find patch
+  cv.addEventListener("mousemove", function (e) {
+    var p = PSIZES[parseInt(slider.value, 10) || 0], nh = IMG / p;
+    var r = cv.getBoundingClientRect();
+    var x = Math.floor((e.clientX - r.left) / r.width * IMG);
+    var y = Math.floor((e.clientY - r.top) / r.height * IMG);
+    if (x < 0 || x >= IMG || y < 0 || y >= IMG) return;
+    setHot(Math.floor(y / p) * nh + Math.floor(x / p));
+  });
+  cv.addEventListener("mouseleave", function () { setHot(-1); });
+  slider.addEventListener("input", function () { hot = -1; render(); });
+  render();
+})();
+</script>

@@ -1,0 +1,110 @@
+<div class="viz" id="viz32">
+  <h4>Interactive · CLIP contrastive loss</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    A batch of <b>B=5</b> image–text pairs. The cell at <code>(i,j)</code> is the cosine similarity of image<sub>i</sub>
+    and text<sub>j</sub>, scaled by <code>1/temperature</code>. The <span style="color:#2ea043">diagonal</span> are the
+    correct (positive) pairs; off-diagonal are negatives. Symmetric cross-entropy pushes each row <i>and</i> each column
+    onto its diagonal.
+  </p>
+  <div class="row">
+    <label>Temperature <code>τ</code></label>
+    <input id="v32-t" type="range" min="0.02" max="1" step="0.01" value="0.2" style="width:200px" />
+    <span class="val" id="v32-tv">0.20</span>
+    <button id="v32-toggle" class="btn" style="padding:3px 9px">embeddings: aligned</button>
+    <button id="v32-reroll" class="btn" style="padding:3px 9px">↻ reroll</button>
+  </div>
+  <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;margin-top:6px">
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">softmax over each row = P(text | image) → ideal = diagonal</div>
+      <div id="v32-grid"></div>
+    </div>
+    <div style="flex:1;min-width:180px;font-size:12.5px;color:#c9d1d9">
+      <div style="margin-bottom:8px">
+        <span style="color:#8b949e">image→text loss</span> <span class="val" id="v32-li">–</span><br>
+        <span style="color:#8b949e">text→image loss</span> <span class="val" id="v32-lt">–</span><br>
+        <span style="color:#4f8cff;font-weight:600">symmetric loss</span> <span class="val" id="v32-loss" style="font-size:14px">–</span>
+      </div>
+      <div style="font-size:12px;color:#8b949e;line-height:1.5">
+        loss = ½·( CE(logits, [0..B−1]) + CE(logitsᵀ, [0..B−1]) ).
+        Lower τ sharpens the softmax → diagonal must dominate or loss explodes.
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz32");
+  if (!root) return;
+  var B = 5, D = 16;
+  var img, txt, aligned = true;
+  var slider = root.querySelector("#v32-t"), tv = root.querySelector("#v32-tv");
+  var grid = root.querySelector("#v32-grid"), toggle = root.querySelector("#v32-toggle"), reroll = root.querySelector("#v32-reroll");
+  var liEl = root.querySelector("#v32-li"), ltEl = root.querySelector("#v32-lt"), lossEl = root.querySelector("#v32-loss");
+
+  function randn() { return (Math.random() + Math.random() + Math.random() + Math.random() - 2) / 1.2; }
+  function gen() {
+    img = []; txt = [];
+    for (var i = 0; i < B; i++) {
+      var iv = [], tv2 = [];
+      for (var d = 0; d < D; d++) { var s = randn(); iv.push(s); tv2.push(s); }
+      // text starts as a noisy copy of the image embedding (so pairs are related)
+      for (var d2 = 0; d2 < D; d2++) tv2[d2] += randn() * (aligned ? 0.45 : 2.6);
+      img.push(iv); txt.push(tv2);
+    }
+  }
+  function norm(v) { var s = 0; for (var i = 0; i < v.length; i++) s += v[i] * v[i]; s = Math.sqrt(s) || 1e-9; return v.map(function (x) { return x / s; }); }
+  function dot(a, b) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+  function softmax(xs) {
+    var m = -Infinity; xs.forEach(function (v) { if (v > m) m = v; });
+    var e = xs.map(function (v) { return Math.exp(v - m); });
+    var s = e.reduce(function (a, b) { return a + b; }, 0);
+    return e.map(function (v) { return v / s; });
+  }
+  function color(w, onDiag) {
+    var a = 0.06 + 0.94 * w;
+    return onDiag ? "rgba(46,160,67," + a.toFixed(3) + ")" : "rgba(79,140,255," + a.toFixed(3) + ")";
+  }
+  function render() {
+    var tau = parseFloat(slider.value); tv.textContent = tau.toFixed(2);
+    var In = img.map(norm), Tn = txt.map(norm);
+    var logits = [];
+    for (var i = 0; i < B; i++) { logits.push([]); for (var j = 0; j < B; j++) logits[i].push(dot(In[i], Tn[j]) / tau); }
+    // image->text: softmax over rows; text->image: softmax over columns
+    var li = 0, lt = 0;
+    for (var i2 = 0; i2 < B; i2++) {
+      var pr = softmax(logits[i2]); li += -Math.log(Math.max(pr[i2], 1e-12));
+      var col = []; for (var r = 0; r < B; r++) col.push(logits[r][i2]);
+      var pc = softmax(col); lt += -Math.log(Math.max(pc[i2], 1e-12));
+    }
+    li /= B; lt /= B;
+    liEl.textContent = li.toFixed(3); ltEl.textContent = lt.toFixed(3);
+    lossEl.textContent = ((li + lt) / 2).toFixed(3);
+    // draw grid showing row-softmax probabilities
+    var html = '<table style="border-collapse:collapse;font:11px ui-monospace,monospace">';
+    html += '<tr><td></td>';
+    for (var j2 = 0; j2 < B; j2++) html += '<td style="color:#8b949e;text-align:center;padding:2px 5px">txt' + j2 + '</td>';
+    html += '</tr>';
+    for (var i3 = 0; i3 < B; i3++) {
+      var pr3 = softmax(logits[i3]);
+      html += '<tr><td style="color:#8b949e;padding:2px 5px">img' + i3 + '</td>';
+      for (var j3 = 0; j3 < B; j3++) {
+        var w = pr3[j3], on = i3 === j3;
+        html += '<td style="width:48px;height:32px;text-align:center;background:' + color(w, on) +
+          ';border:1px solid #0d1117;' + (on ? 'outline:2px solid #2ea043;outline-offset:-2px;' : '') +
+          'color:' + (w > 0.5 ? "#fff" : "#c9d1d9") + '">' + (w < 0.005 ? "0" : w.toFixed(2)) + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+    grid.innerHTML = html;
+  }
+  toggle.addEventListener("click", function () {
+    aligned = !aligned;
+    toggle.textContent = "embeddings: " + (aligned ? "aligned" : "random");
+    gen(); render();
+  });
+  reroll.addEventListener("click", function () { gen(); render(); });
+  slider.addEventListener("input", render);
+  gen(); render();
+})();
+</script>

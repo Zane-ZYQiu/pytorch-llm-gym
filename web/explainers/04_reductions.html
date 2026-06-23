@@ -1,0 +1,104 @@
+<div class="viz" id="viz04">
+  <h4>Interactive · reduction over a dim</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    A <code>(4,6)</code> matrix. Reducing over a dimension <b>collapses</b> it: <code>dim=0</code> averages down each
+    column, <code>dim=1</code> averages across each row. With <code>keepdim=True</code> the reduced axis becomes size 1.
+    Variance is <b>biased</b>: <code>((x−mean)²).mean()</code> (÷N).
+  </p>
+  <div class="row">
+    <label><input type="radio" name="v04-dim" value="0" /> dim=0 (over rows → per-column)</label>
+    <label><input type="radio" name="v04-dim" value="1" checked /> dim=1 (over cols → per-row)</label>
+    <button id="v04-reroll" class="btn" style="padding:3px 9px">↻ reroll</button>
+  </div>
+  <div id="v04-grid" style="margin-top:10px;overflow-x:auto"></div>
+  <div id="v04-shape" style="margin-top:10px;font:12px var(--mono,ui-monospace,monospace);color:#ffd9a0"></div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz04");
+  if (!root) return;
+  var R = 4, C = 6;
+  var X;
+  var grid = root.querySelector("#v04-grid");
+  var shapeEl = root.querySelector("#v04-shape");
+  var reroll = root.querySelector("#v04-reroll");
+  if (!grid) return;
+
+  function gen() {
+    X = [];
+    for (var i = 0; i < R; i++) {
+      var row = [];
+      for (var j = 0; j < C; j++) row.push(Math.floor(Math.random() * 19) - 9);
+      X.push(row);
+    }
+  }
+  function dimVal() {
+    var sel = root.querySelector('input[name="v04-dim"]:checked');
+    return sel ? parseInt(sel.value, 10) : 1;
+  }
+  function meanVar(vals) {
+    var n = vals.length, s = 0;
+    for (var k = 0; k < n; k++) s += vals[k];
+    var m = s / n, v = 0;
+    for (var k2 = 0; k2 < n; k2++) v += (vals[k2] - m) * (vals[k2] - m);
+    return [m, v / n]; // biased
+  }
+  function cell(txt, bg, color, extra) {
+    return '<td style="width:46px;height:30px;text-align:center;border:1px solid #0d1117;background:' + bg +
+      ';color:' + (color || "#e6edf3") + ';' + (extra || "") + '">' + txt + '</td>';
+  }
+  function render() {
+    var dim = dimVal();
+    // precompute reductions
+    var colStats = [], rowStats = [];
+    for (var j = 0; j < C; j++) { var cv = []; for (var i = 0; i < R; i++) cv.push(X[i][j]); colStats.push(meanVar(cv)); }
+    for (var i2 = 0; i2 < R; i2++) rowStats.push(meanVar(X[i2]));
+
+    var hl = "rgba(79,140,255,0.22)"; // highlighted axis tint
+    var html = '<table style="border-collapse:collapse;font:12px var(--mono,ui-monospace,monospace)">';
+
+    for (var i = 0; i < R; i++) {
+      html += '<tr>';
+      for (var j = 0; j < C; j++) {
+        // highlight the cells being summed together: dim=0 highlights whole columns, dim=1 whole rows
+        var inAxis = (dim === 0) || (dim === 1);
+        var bg = "var(--panel,#161b22)";
+        if (dim === 0) bg = hl;          // every column is a reduction group
+        else bg = hl;                     // every row is a reduction group; tint all, arrows clarify
+        html += cell(X[i][j], bg);
+      }
+      // dim=1 result vector to the right of each row
+      if (dim === 1) {
+        html += '<td style="width:14px"></td>';
+        html += cell(rowStats[i][0].toFixed(2), "rgba(46,160,67,0.30)", "#7ee787");
+        html += cell(rowStats[i][1].toFixed(2), "rgba(210,153,34,0.25)", "#ffd9a0");
+      }
+      html += '</tr>';
+    }
+
+    // dim=0 result vectors below
+    if (dim === 0) {
+      html += '<tr><td colspan="' + C + '" style="height:10px"></td></tr>';
+      html += '<tr>';
+      for (var j2 = 0; j2 < C; j2++) html += cell(colStats[j2][0].toFixed(2), "rgba(46,160,67,0.30)", "#7ee787");
+      html += '</tr><tr>';
+      for (var j3 = 0; j3 < C; j3++) html += cell(colStats[j3][1].toFixed(2), "rgba(210,153,34,0.25)", "#ffd9a0");
+      html += '</tr>';
+    }
+    html += '</table>';
+    // legend line
+    var legend = '<div style="margin-top:6px;font-size:11px;color:#8b949e">' +
+      '<span style="color:#7ee787">green</span> = mean &nbsp; <span style="color:#ffd9a0">yellow</span> = biased var' +
+      (dim === 1 ? ' (per row, to the right)' : ' (per column, below)') + '</div>';
+    grid.innerHTML = html + legend;
+
+    if (shapeEl) {
+      if (dim === 0) shapeEl.textContent = "x.mean(dim=0, keepdim=True): (4,6) → (1,6)   ·   collapses the row axis";
+      else shapeEl.textContent = "x.mean(dim=1, keepdim=True): (4,6) → (4,1)   ·   collapses the column axis";
+    }
+  }
+  if (reroll) reroll.addEventListener("click", function () { gen(); render(); });
+  root.querySelectorAll('input[name="v04-dim"]').forEach(function (r) { r.addEventListener("change", render); });
+  gen(); render();
+})();
+</script>

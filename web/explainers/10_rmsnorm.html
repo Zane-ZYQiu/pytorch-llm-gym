@@ -1,0 +1,75 @@
+<div class="viz" id="viz10">
+  <h4>Interactive · RMSNorm vs LayerNorm</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    LayerNorm re-centers (subtract mean) <i>and</i> re-scales. RMSNorm only divides by
+    <code>RMS = √(mean(x²)+ε)</code> — no mean subtraction, no β. Note RMSNorm keeps the mean offset.
+  </p>
+  <div class="row">
+    <button id="v10-reroll" class="btn" style="padding:3px 9px">↻ new x</button>
+    <span class="val" id="v10-stats"></span>
+  </div>
+  <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:6px">
+    <div>
+      <div style="font-size:11px;color:#4f8cff;margin-bottom:4px">RMSNorm: x / RMS &nbsp;<span class="val" id="v10-rstats"></span></div>
+      <div id="v10-rms" style="display:flex;align-items:center;gap:8px;height:120px"></div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:#2ea043;margin-bottom:4px">LayerNorm: (x−μ)/σ &nbsp;<span class="val" id="v10-lstats"></span></div>
+      <div id="v10-ln" style="display:flex;align-items:center;gap:8px;height:120px"></div>
+    </div>
+  </div>
+  <p style="font-size:12px;color:#8b949e;margin:8px 0 0">
+    Same input, γ=1. LayerNorm output is always centered at <b>mean ≈ 0</b>; RMSNorm keeps the original
+    sign/offset of the mean (it skips re-centering).
+  </p>
+</div>
+<script>
+(function () {
+  var D = 6, eps = 1e-5;
+  var x = [];
+  var reBtn = document.getElementById("v10-reroll");
+  if (!reBtn) return;
+  function randn() { return (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.6; }
+  function reroll() { x = []; for (var i = 0; i < D; i++) x.push(+(randn() + 1.2).toFixed(2)); }
+  function bars(box, vals, color, scale) {
+    box.innerHTML = "";
+    var mid = 50;
+    vals.forEach(function (v) {
+      var col = document.createElement("div");
+      col.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-width:30px";
+      var wrap = document.createElement("div");
+      wrap.style.cssText = "position:relative;width:100%;height:100px";
+      var line = document.createElement("div");
+      line.style.cssText = "position:absolute;top:" + mid + "px;left:0;right:0;border-top:1px solid #2b3340";
+      var bar = document.createElement("div");
+      var h = Math.min(48, Math.abs(v) * scale);
+      bar.style.cssText = "position:absolute;left:20%;width:60%;background:" + color + ";" +
+        (v >= 0 ? ("bottom:" + (100 - mid) + "px;height:" + h + "px;border-radius:4px 4px 0 0")
+                : ("top:" + mid + "px;height:" + h + "px;border-radius:0 0 4px 4px"));
+      wrap.appendChild(line); wrap.appendChild(bar);
+      var lab = document.createElement("div");
+      lab.style.cssText = "font:10px ui-monospace,monospace;color:#8b949e;margin-top:2px";
+      lab.textContent = v.toFixed(2);
+      col.appendChild(wrap); col.appendChild(lab);
+      box.appendChild(col);
+    });
+  }
+  function meanOf(a) { return a.reduce(function (s, c) { return s + c; }, 0) / a.length; }
+  function render() {
+    var mean = meanOf(x);
+    var ms = x.reduce(function (s, c) { return s + c * c; }, 0) / D;
+    var rms = Math.sqrt(ms + eps);
+    var varr = x.reduce(function (s, c) { return s + (c - mean) * (c - mean); }, 0) / D;
+    var std = Math.sqrt(varr + eps);
+    var r = x.map(function (c) { return c / rms; });
+    var l = x.map(function (c) { return (c - mean) / std; });
+    document.getElementById("v10-stats").textContent = "x mean=" + mean.toFixed(2) + " RMS=" + rms.toFixed(2);
+    document.getElementById("v10-rstats").textContent = "mean=" + meanOf(r).toFixed(2);
+    document.getElementById("v10-lstats").textContent = "mean=" + meanOf(l).toFixed(2);
+    bars(document.getElementById("v10-rms"), r, "#4f8cff", 26);
+    bars(document.getElementById("v10-ln"), l, "#2ea043", 26);
+  }
+  reBtn.addEventListener("click", function () { reroll(); render(); });
+  reroll(); render();
+})();
+</script>

@@ -1,0 +1,52 @@
+<div class="viz" id="viz03">
+  <h4>Interactive · causal mask</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Attention scores are a <code>T×T</code> grid: row <code>i</code> = query, col <code>j</code> = key.
+    The causal mask fills every <b>future</b> position (<code>j &gt; i</code>) with <code>−∞</code> via
+    <code>masked_fill</code>, so after softmax those weights become 0. Toggle it on to keep only the lower triangle.
+  </p>
+  <div class="row">
+    <label><input id="v03-mask" type="checkbox" checked /> apply causal mask</label>
+    <span style="color:#8b949e;font-size:12px">
+      <span style="display:inline-block;width:11px;height:11px;background:rgba(46,160,67,0.35);border:1px solid #2ea043;vertical-align:-1px"></span> allowed
+      &nbsp;
+      <span style="display:inline-block;width:11px;height:11px;background:rgba(248,81,73,0.22);border:1px solid #f85149;vertical-align:-1px"></span> blocked (−∞)
+    </span>
+  </div>
+  <div id="v03-grid" style="margin-top:8px;overflow-x:auto"></div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz03");
+  if (!root) return;
+  var T = 6;
+  var cb = root.querySelector("#v03-mask");
+  var grid = root.querySelector("#v03-grid");
+  if (!grid) return;
+
+  function render() {
+    var masked = cb ? cb.checked : true;
+    var html = '<table style="border-collapse:collapse;font:12px var(--mono,ui-monospace,monospace)">';
+    html += '<tr><td></td>';
+    for (var j = 0; j < T; j++) html += '<td style="color:#8b949e;text-align:center;padding:3px 6px">k' + j + '</td>';
+    html += '</tr>';
+    for (var i = 0; i < T; i++) {
+      html += '<tr><td style="color:#8b949e;padding:3px 6px">q' + i + '</td>';
+      for (var j = 0; j < T; j++) {
+        var blocked = masked && j > i;
+        var bg = blocked ? "rgba(248,81,73,0.22)" : "rgba(46,160,67,0.35)";
+        var bd = blocked ? "#f85149" : "#2ea043";
+        var txt = blocked ? "−∞" : "•";
+        var col = blocked ? "#f85149" : "#e6edf3";
+        html += '<td style="width:42px;height:32px;text-align:center;background:' + bg +
+          ';border:1px solid ' + bd + ';color:' + col + '">' + txt + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</table>';
+    grid.innerHTML = html;
+  }
+  if (cb) cb.addEventListener("change", render);
+  render();
+})();
+</script>

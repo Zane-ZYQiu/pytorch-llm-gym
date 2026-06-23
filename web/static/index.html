@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PyTorch LLM Gym</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <!-- CodeMirror (editor) + marked (Markdown), loaded from CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">🏋️ PyTorch LLM <span>Gym</span></div>
+    <div class="tagline">Implement LLM internals from scratch — LeetCode-style, runs locally</div>
+    <div class="header-actions">
+      <button id="prev" class="btn ghost" title="Previous problem">◀</button>
+      <button id="next-prob" class="btn ghost" title="Next problem">▶</button>
+      <button id="theme" class="btn ghost" title="Toggle light/dark">🌙</button>
+    </div>
+    <div id="progress" class="progress"></div>
+  </header>
+
+  <div id="layout">
+    <aside id="sidebar"><div class="side-title">Problems</div><div id="problist"></div></aside>
+
+    <section id="desc">
+      <div id="desc-head">
+        <span id="desc-level" class="badge"></span>
+        <h2 id="desc-title">Pick a problem on the left →</h2>
+      </div>
+      <div id="explainer"></div>
+      <div id="desc-body" class="markdown"></div>
+    </section>
+
+    <div id="splitter" title="Drag to resize"></div>
+
+    <section id="work">
+      <div id="editor-wrap"><textarea id="code"></textarea></div>
+      <div id="toolbar">
+        <button id="run" class="btn primary">▶ Run tests</button>
+        <button id="reset" class="btn">↺ Reset</button>
+        <button id="hint" class="btn">💡 Hint</button>
+        <button id="solution" class="btn">👁 Solution</button>
+        <span id="status" class="status"></span>
+      </div>
+      <pre id="console">Implement the TODOs in the editor, then click “Run tests”.</pre>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

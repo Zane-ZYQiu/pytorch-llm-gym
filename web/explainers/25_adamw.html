@@ -1,0 +1,120 @@
+<div class="viz" id="viz25">
+  <h4>Interactive · Adam moments m & v</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Step through a stream of noisy gradients. The <b style="color:#4f8cff">first moment m</b> (momentum) and
+    <b style="color:#d29922">second moment v</b> (variance) are EMAs with rates <code>β1</code>, <code>β2</code>.
+    Early steps are amplified by <b style="color:#2ea043">bias correction</b>.
+  </p>
+  <div class="row">
+    <label>β1</label>
+    <input id="v25-b1" type="range" min="0.5" max="0.99" step="0.01" value="0.9" style="width:140px" />
+    <span class="val" id="v25-b1v">0.90</span>
+    <label>β2</label>
+    <input id="v25-b2" type="range" min="0.9" max="0.999" step="0.001" value="0.999" style="width:140px" />
+    <span class="val" id="v25-b2v">0.999</span>
+  </div>
+  <div class="row">
+    <button id="v25-step" class="btn" style="padding:4px 12px">▶ step</button>
+    <button id="v25-reset" class="btn" style="padding:4px 10px">↺ reset</button>
+    <span class="val" id="v25-t">t = 0</span>
+  </div>
+  <svg id="v25-svg" viewBox="0 0 460 180" width="100%" height="180" style="max-width:460px;display:block;margin-top:6px" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="v25-rowstat" style="display:flex;gap:14px;font:12px ui-monospace,monospace;color:#c9d1d9;margin-top:6px;flex-wrap:wrap"></div>
+  <p style="font-size:12px;color:#8b949e;margin:8px 0 0">
+    Update: <code>θ ← θ − lr·m̂/(√v̂+eps)</code>, with <code>m̂=m/(1−β1ᵗ)</code>, <code>v̂=v/(1−β2ᵗ)</code>.
+    <b style="color:#4f8cff">AdamW</b> adds <i>decoupled</i> weight decay <code>θ ← θ·(1−lr·wd)</code> applied to the
+    parameter directly — not mixed into the gradient like plain L2.
+  </p>
+</div>
+<script>
+(function () {
+  var svg = document.getElementById("v25-svg");
+  if (!svg) return;
+  // fixed noisy gradient stream (true mean ~0.5, with noise)
+  var grads = [0.9, 0.2, 0.7, -0.3, 0.6, 1.1, 0.1, 0.5, 0.8, -0.1, 0.4, 0.9, 0.3, 0.6, 0.5, 0.7];
+  var b1El = document.getElementById("v25-b1"), b2El = document.getElementById("v25-b2");
+  var b1v = document.getElementById("v25-b1v"), b2v = document.getElementById("v25-b2v");
+  var tEl = document.getElementById("v25-t"), stat = document.getElementById("v25-rowstat");
+  var stepBtn = document.getElementById("v25-step"), resetBtn = document.getElementById("v25-reset");
+  var t = 0, m = 0, v = 0;
+  var hist = []; // {g,m,v,mh,vh}
+
+  function recompute() {
+    // replay whole history with current betas so slider changes are consistent
+    var b1 = parseFloat(b1El.value), b2 = parseFloat(b2El.value);
+    m = 0; v = 0; hist = [];
+    for (var i = 0; i < t; i++) {
+      var g = grads[i % grads.length];
+      m = b1 * m + (1 - b1) * g;
+      v = b2 * v + (1 - b2) * g * g;
+      var mh = m / (1 - Math.pow(b1, i + 1));
+      var vh = v / (1 - Math.pow(b2, i + 1));
+      hist.push({ g: g, m: m, v: v, mh: mh, vh: vh });
+    }
+  }
+
+  function render() {
+    b1v.textContent = parseFloat(b1El.value).toFixed(2);
+    b2v.textContent = parseFloat(b2El.value).toFixed(3);
+    tEl.textContent = "t = " + t;
+    recompute();
+    var W = 460, H = 180, padL = 30, padR = 8, padT = 12, padB = 22;
+    var n = grads.length;
+    function X(i) { return padL + (W - padL - padR) * (n <= 1 ? 0 : i / (n - 1)); }
+    var lo = -0.6, hi = 1.4;
+    function Y(val) { return padT + (H - padT - padB) * (1 - (val - lo) / (hi - lo)); }
+    var s = "";
+    // axes
+    s += '<line x1="' + padL + '" y1="' + Y(0) + '" x2="' + (W - padR) + '" y2="' + Y(0) + '" stroke="#2b3340" stroke-width="1"/>';
+    s += '<text x="2" y="' + (Y(0) + 3) + '" font-family="ui-monospace,monospace" font-size="9" fill="#8b949e">0</text>';
+    s += '<text x="2" y="' + (Y(1.0) + 3) + '" font-family="ui-monospace,monospace" font-size="9" fill="#8b949e">1</text>';
+    // gradient bars (full stream, faint; processed ones brighter)
+    for (var i = 0; i < n; i++) {
+      var g = grads[i], processed = i < t;
+      var bx = X(i) - 4, by = Math.min(Y(g), Y(0)), bh = Math.abs(Y(g) - Y(0));
+      s += '<rect x="' + bx.toFixed(1) + '" y="' + by.toFixed(1) + '" width="8" height="' + Math.max(bh, 0.5).toFixed(1) +
+        '" fill="' + (processed ? "rgba(139,148,158,0.55)" : "rgba(139,148,158,0.18)") + '" rx="1"/>';
+    }
+    // m and v polylines over processed steps
+    function poly(key, color, w) {
+      if (hist.length === 0) return "";
+      var pts = hist.map(function (h, i) { return X(i) + "," + Y(h[key]); }).join(" ");
+      return '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="' + w + '"/>';
+    }
+    s += poly("m", "#4f8cff", 2);
+    s += poly("v", "#d29922", 2);
+    s += poly("mh", "#2ea043", 1.4); // bias-corrected m (dashed)
+    // dots at current head
+    if (hist.length) {
+      var last = hist[hist.length - 1], xi = X(hist.length - 1);
+      s += '<circle cx="' + xi + '" cy="' + Y(last.m) + '" r="3" fill="#4f8cff"/>';
+      s += '<circle cx="' + xi + '" cy="' + Y(last.v) + '" r="3" fill="#d29922"/>';
+    }
+    // legend
+    s += '<g font-family="ui-monospace,monospace" font-size="9">';
+    s += '<rect x="' + (W - 150) + '" y="6" width="9" height="3" fill="#4f8cff"/><text x="' + (W - 138) + '" y="10" fill="#c9d1d9">m</text>';
+    s += '<rect x="' + (W - 118) + '" y="6" width="9" height="3" fill="#2ea043"/><text x="' + (W - 106) + '" y="10" fill="#c9d1d9">m̂(corr.)</text>';
+    s += '<rect x="' + (W - 60) + '" y="6" width="9" height="3" fill="#d29922"/><text x="' + (W - 48) + '" y="10" fill="#c9d1d9">v</text>';
+    s += '</g>';
+    svg.innerHTML = s;
+
+    if (hist.length) {
+      var h = hist[hist.length - 1];
+      stat.innerHTML =
+        '<span>g=<b style="color:#c9d1d9">' + h.g.toFixed(2) + '</b></span>' +
+        '<span style="color:#4f8cff">m=' + h.m.toFixed(3) + '</span>' +
+        '<span style="color:#2ea043">m̂=' + h.mh.toFixed(3) + '</span>' +
+        '<span style="color:#d29922">v=' + h.v.toFixed(3) + '</span>' +
+        '<span style="color:#d29922">v̂=' + h.vh.toFixed(3) + '</span>';
+    } else {
+      stat.innerHTML = '<span style="color:#8b949e">m=v=0; press step. Notice m̂ (green) starts amplified above m (bias correction).</span>';
+    }
+  }
+
+  stepBtn.addEventListener("click", function () { if (t < grads.length) t++; render(); });
+  resetBtn.addEventListener("click", function () { t = 0; render(); });
+  b1El.addEventListener("input", render);
+  b2El.addEventListener("input", render);
+  render();
+})();
+</script>

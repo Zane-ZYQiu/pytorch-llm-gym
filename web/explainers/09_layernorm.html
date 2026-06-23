@@ -1,0 +1,78 @@
+<div class="viz" id="viz09">
+  <h4>Interactive · LayerNorm</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Standardize one token's feature vector along D: subtract the mean, divide by std
+    (so mean→0, var→1), then apply the affine <code>· γ + β</code>. Reroll the input or drag γ, β.
+  </p>
+  <div class="row">
+    <label>γ (scale)</label>
+    <input id="v09-g" type="range" min="0" max="3" step="0.05" value="1" style="width:150px" />
+    <span class="val" id="v09-gv">1.00</span>
+    <label>β (shift)</label>
+    <input id="v09-b" type="range" min="-2" max="2" step="0.05" value="0" style="width:150px" />
+    <span class="val" id="v09-bv">0.00</span>
+    <button id="v09-reroll" class="btn" style="padding:3px 9px">↻ new x</button>
+  </div>
+  <div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:6px">
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">input x &nbsp;<span class="val" id="v09-in-stats"></span></div>
+      <div id="v09-in" style="display:flex;align-items:center;gap:8px;height:120px"></div>
+    </div>
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">output y = x̂·γ + β &nbsp;<span class="val" id="v09-out-stats"></span></div>
+      <div id="v09-out" style="display:flex;align-items:center;gap:8px;height:120px"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var D = 6, eps = 1e-5;
+  var x = [];
+  var sg = document.getElementById("v09-g"), sb = document.getElementById("v09-b");
+  if (!sg) return;
+  function randn() { return (Math.random() + Math.random() + Math.random() + Math.random() - 2) * 1.6; }
+  function reroll() { x = []; for (var i = 0; i < D; i++) x.push(+(randn() + 1.0).toFixed(2)); }
+  function bars(box, vals, color, scale) {
+    box.innerHTML = "";
+    var mid = 50; // px midline within 110px track
+    vals.forEach(function (v) {
+      var col = document.createElement("div");
+      col.style.cssText = "flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-width:30px";
+      var wrap = document.createElement("div");
+      wrap.style.cssText = "position:relative;width:100%;height:100px";
+      var line = document.createElement("div");
+      line.style.cssText = "position:absolute;top:" + mid + "px;left:0;right:0;border-top:1px solid #2b3340";
+      var bar = document.createElement("div");
+      var h = Math.min(48, Math.abs(v) * scale);
+      bar.style.cssText = "position:absolute;left:20%;width:60%;background:" + color + ";transition:all .1s;" +
+        (v >= 0 ? ("bottom:" + (100 - mid) + "px;height:" + h + "px;border-radius:4px 4px 0 0")
+                : ("top:" + mid + "px;height:" + h + "px;border-radius:0 0 4px 4px"));
+      wrap.appendChild(line); wrap.appendChild(bar);
+      var lab = document.createElement("div");
+      lab.style.cssText = "font:10px ui-monospace,monospace;color:#8b949e;margin-top:2px";
+      lab.textContent = v.toFixed(2);
+      col.appendChild(wrap); col.appendChild(lab);
+      box.appendChild(col);
+    });
+  }
+  function render() {
+    var g = parseFloat(sg.value), b = parseFloat(sb.value);
+    document.getElementById("v09-gv").textContent = g.toFixed(2);
+    document.getElementById("v09-bv").textContent = b.toFixed(2);
+    var mean = x.reduce(function (a, c) { return a + c; }, 0) / D;
+    var varr = x.reduce(function (a, c) { return a + (c - mean) * (c - mean); }, 0) / D; // biased, /D
+    var std = Math.sqrt(varr + eps);
+    var y = x.map(function (c) { return ((c - mean) / std) * g + b; });
+    var ymean = y.reduce(function (a, c) { return a + c; }, 0) / D;
+    var yvar = y.reduce(function (a, c) { return a + (c - ymean) * (c - ymean); }, 0) / D;
+    document.getElementById("v09-in-stats").textContent = "mean=" + mean.toFixed(2) + " var=" + varr.toFixed(2);
+    document.getElementById("v09-out-stats").textContent = "mean=" + ymean.toFixed(2) + " var=" + yvar.toFixed(2);
+    bars(document.getElementById("v09-in"), x, "#4f8cff", 18);
+    bars(document.getElementById("v09-out"), y, "#2ea043", 26);
+  }
+  sg.addEventListener("input", render);
+  sb.addEventListener("input", render);
+  document.getElementById("v09-reroll").addEventListener("click", function () { reroll(); render(); });
+  reroll(); render();
+})();
+</script>

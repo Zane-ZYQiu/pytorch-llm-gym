@@ -1,0 +1,96 @@
+<div class="viz" id="viz35">
+  <h4>Interactive · 2D-RoPE for image tokens</h4>
+  <p style="font-size:13px;color:#c9d1d9;margin:4px 0 10px">
+    Image tokens sit on an <b>H×W</b> grid (row-major, <code>T = H·W</code>). The head dim is split in half: the
+    <span style="color:#4f8cff">first half</span> is rotated by the token's <b>row</b> index, the
+    <span style="color:#d29922">second half</span> by its <b>col</b> index. Hover a token to see its (row, col) and the
+    two rotation angles.
+  </p>
+  <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-top:4px">
+    <div>
+      <div style="font-size:11px;color:#8b949e;margin-bottom:4px">H=4, W=5 grid — hover a token</div>
+      <div id="v35-grid" style="display:grid;gap:5px"></div>
+    </div>
+    <div style="flex:1;min-width:230px">
+      <div id="v35-info" style="font-size:13px;color:#c9d1d9;min-height:54px">
+        <b style="color:#4f8cff">θ-pairs.</b> Within each half, dim-pairs use frequencies
+        <code>θ<sub>m</sub> = base<sup>−2m/(hd/2)</sup></code>. The applied angle for pair m is
+        <code>coord · θ<sub>m</sub></code> — same RoPE, but the "position" is the row for the first half and the col for
+        the second half.
+      </div>
+      <div style="font-size:11px;color:#8b949e;margin:12px 0 4px">head_dim layout (hd=8 example)</div>
+      <div id="v35-dims" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+      <div id="v35-angles" style="font:12px ui-monospace,monospace;color:#c9d1d9;margin-top:10px;min-height:40px"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("viz35");
+  if (!root) return;
+  var H = 4, W = 5, hd = 8, base = 10000;
+  var half = hd / 2, pairs = half / 2; // # of (cos,sin) pairs per half = 2
+  // frequencies for one half: m = 0..pairs-1
+  var freqs = [];
+  for (var m = 0; m < pairs; m++) freqs.push(Math.pow(base, -2 * m / half));
+
+  var gridEl = root.querySelector("#v35-grid");
+  var infoEl = root.querySelector("#v35-info"), defInfo = infoEl.innerHTML;
+  var dimsEl = root.querySelector("#v35-dims"), anglesEl = root.querySelector("#v35-angles");
+  gridEl.style.gridTemplateColumns = "repeat(" + W + ", 38px)";
+
+  // static head_dim strip: first half blue (row), second half yellow (col)
+  for (var i = 0; i < hd; i++) {
+    var firstHalf = i < half;
+    var d = document.createElement("div");
+    d.style.cssText = "width:24px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:4px;" +
+      "font:10px ui-monospace,monospace;color:#e6edf3;background:" + (firstHalf ? "#13233f" : "#2a2410") +
+      ";border:1px solid " + (firstHalf ? "#4f8cff" : "#d29922") + '"';
+    d.textContent = i;
+    d.title = firstHalf ? "rotated by ROW" : "rotated by COL";
+    dimsEl.appendChild(d);
+  }
+
+  var cells = [];
+  function info(r, c) {
+    var rowAngles = freqs.map(function (f) { return (r * f); });
+    var colAngles = freqs.map(function (f) { return (c * f); });
+    function fmt(a) { return a.map(function (x) { return x.toFixed(3); }).join(", "); }
+    infoEl.innerHTML = "<b style='color:#4f8cff'>token " + (r * W + c) + "</b> &nbsp; (row=" + r + ", col=" + c + ")" +
+      "<br><span style='color:#8b949e'>position index T = row·W + col = " + (r * W + c) + "</span>";
+    anglesEl.innerHTML =
+      "<span style='color:#4f8cff'>first half ← row " + r + ":</span> θ·coord = [" + fmt(rowAngles) + "]<br>" +
+      "<span style='color:#d29922'>second half ← col " + c + ":</span> θ·coord = [" + fmt(colAngles) + "]";
+  }
+  function clearInfo() { infoEl.innerHTML = defInfo; anglesEl.innerHTML = ""; }
+
+  for (var r = 0; r < H; r++) for (var c = 0; c < W; c++) {
+    (function (r, c) {
+      var cell = document.createElement("div");
+      cell.style.cssText = "width:38px;height:38px;border-radius:6px;display:flex;flex-direction:column;align-items:center;" +
+        "justify-content:center;font:10px ui-monospace,monospace;cursor:pointer;background:#0b1020;border:1px solid #2b3340;" +
+        "color:#c9d1d9;transition:transform .1s,box-shadow .1s";
+      cell.innerHTML = "<span style='color:#e6edf3'>" + (r * W + c) + "</span>" +
+        "<span style='color:#8b949e;font-size:8.5px'>" + r + "," + c + "</span>";
+      cell.addEventListener("mouseenter", function () {
+        cell.style.transform = "scale(1.12)";
+        cell.style.boxShadow = "0 2px 10px rgba(79,140,255,0.45)";
+        cell.style.borderColor = "#4f8cff";
+        // tint row neighbours blue, col neighbours yellow
+        cells.forEach(function (o) {
+          if (o.r === r && !(o.c === c)) { o.el.style.background = "#13233f"; o.el.style.borderColor = "#4f8cff"; }
+          else if (o.c === c && !(o.r === r)) { o.el.style.background = "#2a2410"; o.el.style.borderColor = "#d29922"; }
+        });
+        info(r, c);
+      });
+      cell.addEventListener("mouseleave", function () {
+        cell.style.transform = "none"; cell.style.boxShadow = "none"; cell.style.borderColor = "#2b3340";
+        cells.forEach(function (o) { o.el.style.background = "#0b1020"; o.el.style.borderColor = "#2b3340"; });
+        clearInfo();
+      });
+      gridEl.appendChild(cell);
+      cells.push({ r: r, c: c, el: cell });
+    })(r, c);
+  }
+})();
+</script>
