@@ -33,11 +33,17 @@ header {
 #layout {
   flex: 1; display: flex; min-height: 0;
 }
-#splitter {
+#splitter, #splitter-left {
   flex: none; width: 6px; cursor: col-resize; background: var(--border);
   transition: background .15s;
 }
-#splitter:hover, #splitter.dragging { background: var(--accent); }
+#splitter:hover, #splitter.dragging,
+#splitter-left:hover, #splitter-left.dragging { background: var(--accent); }
+#splitter-h {
+  flex: none; height: 6px; cursor: row-resize; background: var(--border);
+  transition: background .15s;
+}
+#splitter-h:hover, #splitter-h.dragging { background: var(--accent); }
 
 .header-actions { display: flex; gap: 6px; }
 .btn.ghost { padding: 5px 10px; background: transparent; }
@@ -115,9 +121,9 @@ header {
 
 @media (max-width: 980px) {
   #layout { flex-direction: column; }
-  #sidebar { width: auto; max-height: 160px; }
+  #sidebar { width: auto !important; max-height: 160px; }
   #desc, #work { flex: none; width: 100%; }
-  #splitter { display: none; }
+  #splitter, #splitter-left, #splitter-h { display: none; }
   .CodeMirror { height: 320px !important; }
 }
 

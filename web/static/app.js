@@ -24,6 +24,7 @@ function initEditor() {
       indentUnit: 4,
       tabSize: 4,
       indentWithTabs: false,
+      scrollPastEnd: true,
       extraKeys: {
         "Cmd-Enter": runTests,
         "Ctrl-Enter": runTests,
@@ -217,39 +218,64 @@ function applyTheme(light) {
   localStorage.setItem("gym:theme", light ? "light" : "dark");
 }
 
-// ---- resizable splitter (description | editor) ----
-function initSplitter() {
-  const sp = $("#splitter"), desc = $("#desc"), work = $("#work"),
-        layout = $("#layout"), sidebar = $("#sidebar");
-  if (!sp || !desc || !work) return;
-  const saved = localStorage.getItem("gym:descBasis");
-  if (saved) { desc.style.flexBasis = saved; desc.style.flexGrow = "0"; work.style.flexGrow = "1"; }
-  let dragging = false;
-  sp.addEventListener("mousedown", (e) => {
-    dragging = true; sp.classList.add("dragging");
-    document.body.style.userSelect = "none"; e.preventDefault();
-  });
-  window.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-    const rect = layout.getBoundingClientRect();
-    const left = rect.left + (sidebar ? sidebar.offsetWidth : 0);
-    const max = rect.width - (sidebar ? sidebar.offsetWidth : 0) - 360;
+// ---- resizable splitters (sidebar | description | editor / console) ----
+function initSplitters() {
+  const layout = $("#layout"), sidebar = $("#sidebar"), desc = $("#desc"),
+        work = $("#work"), consoleEl = $("#console");
+  const refresh = () => { if (editor) editor.refresh(); };
+
+  // restore saved sizes
+  const sw = localStorage.getItem("gym:sidebarWidth");
+  if (sw && sidebar) sidebar.style.width = sw;
+  const db = localStorage.getItem("gym:descBasis");
+  if (db && desc) { desc.style.flexBasis = db; desc.style.flexGrow = "0"; if (work) work.style.flexGrow = "1"; }
+  const ch = localStorage.getItem("gym:consoleHeight");
+  if (ch && consoleEl) consoleEl.style.height = ch;
+
+  function makeDrag(handle, onMove, onEnd) {
+    if (!handle) return;
+    let dragging = false;
+    handle.addEventListener("mousedown", (e) => {
+      dragging = true; handle.classList.add("dragging");
+      document.body.style.userSelect = "none"; e.preventDefault();
+    });
+    window.addEventListener("mousemove", (e) => { if (dragging) onMove(e); });
+    window.addEventListener("mouseup", () => {
+      if (!dragging) return;
+      dragging = false; handle.classList.remove("dragging");
+      document.body.style.userSelect = ""; if (onEnd) onEnd();
+    });
+  }
+
+  // sidebar | description
+  makeDrag($("#splitter-left"), (e) => {
+    const r = layout.getBoundingClientRect();
+    const w = Math.max(150, Math.min(440, e.clientX - r.left));
+    sidebar.style.width = w + "px"; refresh();
+  }, () => localStorage.setItem("gym:sidebarWidth", sidebar.style.width));
+
+  // description | editor
+  makeDrag($("#splitter"), (e) => {
+    const r = layout.getBoundingClientRect();
+    const left = r.left + sidebar.offsetWidth;
+    const max = r.width - sidebar.offsetWidth - 360;
     const w = Math.max(280, Math.min(max, e.clientX - left));
-    desc.style.flexBasis = w + "px"; desc.style.flexGrow = "0";
-    work.style.flexGrow = "1";
-  });
-  window.addEventListener("mouseup", () => {
-    if (!dragging) return;
-    dragging = false; sp.classList.remove("dragging"); document.body.style.userSelect = "";
-    if (desc.style.flexBasis) localStorage.setItem("gym:descBasis", desc.style.flexBasis);
-  });
+    desc.style.flexBasis = w + "px"; desc.style.flexGrow = "0"; work.style.flexGrow = "1"; refresh();
+  }, () => { if (desc.style.flexBasis) localStorage.setItem("gym:descBasis", desc.style.flexBasis); });
+
+  // editor | console (vertical)
+  makeDrag($("#splitter-h"), (e) => {
+    const r = work.getBoundingClientRect();
+    const h = Math.max(80, Math.min(r.height - 160, r.bottom - e.clientY));
+    consoleEl.style.height = h + "px"; refresh();
+  }, () => localStorage.setItem("gym:consoleHeight", consoleEl.style.height));
 }
 
 // ---- boot ----
 async function boot() {
   initEditor();
   applyTheme(localStorage.getItem("gym:theme") === "light");
-  initSplitter();
+  initSplitters();
   const data = await api("/api/problems");
   problems = data.problems || [];
   renderSidebar();
