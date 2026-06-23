@@ -23,6 +23,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 STATIC = HERE / "static"
 EXPLAINERS = HERE / "explainers"
+APIS_FILE = HERE / "problem_apis.json"
 
 # make `import practice` resolve against the repo root
 sys.path.insert(0, str(ROOT))
@@ -45,6 +46,13 @@ def list_problems():
     return out
 
 
+def apis_for(dirname):
+    try:
+        return json.loads(APIS_FILE.read_text(encoding="utf-8")).get(dirname, [])
+    except Exception:
+        return []
+
+
 def get_problem(pid):
     d = practice.ex_by_id(pid)
     if not d:
@@ -59,6 +67,7 @@ def get_problem(pid):
         "starter": practice.starter_code(d),
         "hints": practice.hints_of(d),
         "explainer": expl.read_text(encoding="utf-8") if expl.exists() else None,
+        "apis": apis_for(d.name),
         "has_solution": bool(practice.solution_code(d)),
     }
 

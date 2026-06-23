@@ -1,0 +1,152 @@
+{
+  "01_tensor_basics": [
+    {"name": "torch.arange", "sig": "torch.arange(end) -> Tensor", "desc": "1-D tensor of integers 0,1,…,end-1 (default dtype int64 / long)."},
+    {"name": "Tensor.reshape", "sig": "x.reshape(*shape) -> Tensor", "desc": "Same elements, new shape (row-major order). The total number of elements must stay the same; -1 infers one dimension."},
+    {"name": "Tensor.view", "sig": "x.view(*shape) -> Tensor", "desc": "Like reshape but never copies — requires contiguous memory and shares storage with x."},
+    {"name": "Tensor.transpose", "sig": "x.transpose(dim0, dim1) -> Tensor", "desc": "Swaps two dimensions. Negative dims count from the end (-1 = last, -2 = second-to-last)."}
+  ],
+  "02_broadcasting": [
+    {"name": "broadcasting", "sig": "a + b   (shapes auto-aligned)", "desc": "When shapes differ, PyTorch virtually expands size-1 dimensions so they match, e.g. (N,1,D) + (1,M,D) -> (N,M,D). No data is copied."},
+    {"name": "Tensor.unsqueeze", "sig": "x.unsqueeze(dim) -> Tensor", "desc": "Inserts a new size-1 dimension at position dim (x.unsqueeze(1) ≈ x[:, None]). Used to set tensors up for broadcasting."},
+    {"name": "Tensor.sum", "sig": "x.sum(dim, keepdim=False) -> Tensor", "desc": "Sums over a dimension. keepdim=True leaves that axis as size 1 so the result still broadcasts back."},
+    {"name": "Tensor.norm", "sig": "x.norm(dim=None, keepdim=False) -> Tensor", "desc": "L2 (Euclidean) length along a dimension."},
+    {"name": "Tensor.clamp_min", "sig": "x.clamp_min(value) -> Tensor", "desc": "Element-wise max(x, value). Handy to floor a norm before dividing (avoids divide-by-zero)."}
+  ],
+  "03_indexing": [
+    {"name": "torch.gather", "sig": "torch.gather(input, dim, index) -> Tensor", "desc": "Reads values from input along dim at the positions in index (index must have the same ndim as input). This is how you pull each target token's log-prob out of (B,T,V)."},
+    {"name": "Tensor.squeeze", "sig": "x.squeeze(dim) -> Tensor", "desc": "Removes a size-1 dimension (the inverse of unsqueeze)."},
+    {"name": "Tensor.scatter_", "sig": "x.scatter_(dim, index, value) -> Tensor", "desc": "In-place inverse of gather: writes value into x at the positions in index. Used to build one-hot vectors."},
+    {"name": "torch.zeros", "sig": "torch.zeros(*size) -> Tensor", "desc": "A tensor of the given shape filled with 0."},
+    {"name": "torch.ones", "sig": "torch.ones(*size) -> Tensor", "desc": "A tensor of the given shape filled with 1."},
+    {"name": "Tensor.masked_fill", "sig": "x.masked_fill(mask, value) -> Tensor", "desc": "Returns x with every position where the boolean mask is True replaced by value (e.g. -inf for the causal mask, which becomes 0 after softmax)."},
+    {"name": "torch.triu", "sig": "torch.triu(x, diagonal=0) -> Tensor", "desc": "Upper-triangular part of a matrix (the rest set to 0). diagonal=1 keeps the strict upper triangle — exactly the 'future' positions to mask in causal attention."}
+  ],
+  "04_reductions": [
+    {"name": "Tensor.mean", "sig": "x.mean(dim, keepdim=False) -> Tensor", "desc": "Average over a dimension. With keepdim=True it's the first step of LayerNorm/RMSNorm."},
+    {"name": "Tensor.var", "sig": "x.var(dim, unbiased=True, keepdim=False) -> Tensor", "desc": "Variance over a dimension. Normalization layers use the biased version (unbiased=False, i.e. divide by N)."},
+    {"name": "torch.sqrt", "sig": "torch.sqrt(x) -> Tensor", "desc": "Element-wise square root."}
+  ],
+  "05_autograd": [
+    {"name": "Tensor.requires_grad_", "sig": "x.requires_grad_(True) -> Tensor", "desc": "Marks a tensor as a leaf whose gradient should be tracked."},
+    {"name": "Tensor.backward", "sig": "loss.backward()", "desc": "Runs backpropagation from a scalar loss, filling .grad on every leaf tensor it depends on."},
+    {"name": "Tensor.grad", "sig": "x.grad", "desc": "The accumulated gradient ∂loss/∂x after backward() (None until then)."},
+    {"name": "Tensor.detach", "sig": "x.detach() -> Tensor", "desc": "A view that shares data but is cut out of the autograd graph (no gradient flows through it)."},
+    {"name": "Tensor.clone", "sig": "x.clone() -> Tensor", "desc": "A deep copy with its own storage (still differentiable)."},
+    {"name": "Tensor.item", "sig": "x.item() -> float", "desc": "Extracts a plain Python number from a one-element tensor."},
+    {"name": "torch.zeros_like", "sig": "torch.zeros_like(x) -> Tensor", "desc": "Zeros with the same shape, dtype and device as x."}
+  ],
+  "06_linear": [
+    {"name": "@ (matmul)", "sig": "a @ b   ==   torch.matmul(a, b)", "desc": "Matrix multiplication with batch + broadcasting support — the workhorse of every layer. (2D,) @ (2D) is a plain matmul; leading dims are treated as batch."},
+    {"name": "Tensor.t", "sig": "x.t() -> Tensor", "desc": "Transpose of a 2-D tensor (shorthand for transpose(0, 1)). nn.Linear stores weight as (out, in), so its forward does x @ W.t()."}
+  ],
+  "07_softmax": [
+    {"name": "Tensor.max", "sig": "x.max(dim, keepdim=False) -> (values, indices)", "desc": "Max along a dimension; returns a named tuple — take .values. Subtracting this max is the numerical-stability trick for softmax/logsumexp."},
+    {"name": "Tensor.exp", "sig": "x.exp() -> Tensor", "desc": "Element-wise e^x."},
+    {"name": "Tensor.log", "sig": "x.log() -> Tensor", "desc": "Element-wise natural logarithm."}
+  ],
+  "08_cross_entropy": [
+    {"name": "fancy indexing", "sig": "x[torch.arange(n), idx]", "desc": "Indexing two dimensions with parallel index tensors selects x[i, idx[i]] for every row — a quick way to gather the per-row target log-probs."},
+    {"name": "F.cross_entropy", "sig": "F.cross_entropy(logits, targets) -> Tensor", "desc": "PyTorch's fused log-softmax + negative-log-likelihood loss — exactly what you re-implement here (the test uses it as ground truth)."}
+  ],
+  "09_layernorm": [
+    {"name": "F.layer_norm", "sig": "F.layer_norm(x, normalized_shape, weight, bias, eps)", "desc": "The library LayerNorm the test compares against. You build the same thing from mean / var over the last dim plus an affine (gamma, beta)."}
+  ],
+  "10_rmsnorm": [
+    {"name": "torch.rsqrt", "sig": "torch.rsqrt(x) -> Tensor", "desc": "Element-wise 1/sqrt(x) — faster and more stable than dividing by sqrt; used for the RMS scaling."},
+    {"name": "Tensor.pow", "sig": "x.pow(2) -> Tensor", "desc": "Element-wise power (x.pow(2) is the same as x ** 2)."}
+  ],
+  "11_activations": [
+    {"name": "torch.sigmoid", "sig": "torch.sigmoid(x) -> Tensor", "desc": "Element-wise 1/(1+e^-x). SiLU/Swish is x * sigmoid(x)."},
+    {"name": "torch.erf", "sig": "torch.erf(x) -> Tensor", "desc": "The Gauss error function. Exact GELU is 0.5 * x * (1 + erf(x / sqrt(2)))."},
+    {"name": "math.sqrt", "sig": "math.sqrt(x) -> float", "desc": "Scalar square root from Python's math module (for the sqrt(2) constant)."},
+    {"name": "F.silu / F.gelu", "sig": "F.silu(x), F.gelu(x)", "desc": "The library SiLU and GELU activations the tests reference."}
+  ],
+  "12_dropout": [
+    {"name": "torch.rand_like", "sig": "torch.rand_like(x) -> Tensor", "desc": "Uniform random numbers in [0, 1) with x's shape — threshold it (< keep_prob) to build the keep/drop mask."}
+  ],
+  "13_attention": [
+    {"name": "torch.softmax", "sig": "torch.softmax(x, dim) -> Tensor", "desc": "The library softmax along a dimension. You may use it now that you've implemented your own in problem 07."},
+    {"name": "Tensor.transpose(-2, -1)", "sig": "k.transpose(-2, -1)", "desc": "Swaps the last two dims so Q @ Kᵀ works on the (…, T, d) shapes: (…,Tk,d) -> (…,d,Tk)."},
+    {"name": "F.scaled_dot_product_attention", "sig": "F.scaled_dot_product_attention(q, k, v, is_causal=False)", "desc": "PyTorch's fused attention (the test's ground truth). You implement the QKᵀ/sqrt(d) -> mask -> softmax -> ·V steps yourself."}
+  ],
+  "14_multihead_attention": [],
+  "15_grouped_query_attention": [
+    {"name": "Tensor.repeat_interleave", "sig": "x.repeat_interleave(repeats, dim) -> Tensor", "desc": "Repeats each slice along dim consecutively: [a, b] -> [a, a, b, b]. Expands the K/V heads from K groups up to N query heads in GQA."}
+  ],
+  "16_kv_cache": [
+    {"name": "torch.cat", "sig": "torch.cat(tensors, dim) -> Tensor", "desc": "Concatenates a list of tensors along an existing dimension. Here it appends the new key/value to the cache along the sequence axis (dim=2)."}
+  ],
+  "17_sinusoidal_pe": [
+    {"name": "torch.sin / torch.cos", "sig": "torch.sin(x), torch.cos(x)", "desc": "Element-wise sine and cosine — the two interleaved waves of the positional encoding."},
+    {"name": "strided slicing", "sig": "pe[:, 0::2]  /  pe[:, 1::2]", "desc": "start:stop:step slicing. 0::2 selects even columns, 1::2 odd columns — where sin and cos go respectively."},
+    {"name": "torch.pow", "sig": "torch.pow(base, exp) -> Tensor", "desc": "Element-wise base^exp; builds the geometric 1/10000^(2i/d) frequencies."}
+  ],
+  "18_rope": [
+    {"name": "torch.outer", "sig": "torch.outer(a, b) -> Tensor", "desc": "Outer product: out[i, j] = a[i] * b[j]. Builds the (position x frequency) table of rotation angles."}
+  ],
+  "19_transformer_block": [
+    {"name": "nn.Module", "sig": "class Block(nn.Module): ...", "desc": "Base class for every layer/model. Create submodules in __init__ (call super().__init__() first) and define the computation in forward()."},
+    {"name": "nn.Linear", "sig": "nn.Linear(in_features, out_features, bias=True)", "desc": "A learnable affine layer y = x Wᵀ + b (weight stored as (out, in)). Call it like a function: self.fc(x)."},
+    {"name": "nn.RMSNorm", "sig": "nn.RMSNorm(dim)", "desc": "The built-in RMSNorm layer (PyTorch >= 2.4) — you implemented its math in problem 10."}
+  ],
+  "20_gpt": [
+    {"name": "nn.Embedding", "sig": "nn.Embedding(num_embeddings, dim)", "desc": "A lookup table mapping integer ids to vectors — the token and position embeddings. Index it with a LongTensor of ids."},
+    {"name": "nn.ModuleList", "sig": "nn.ModuleList([...])", "desc": "Holds a list of submodules and registers them properly so their parameters are trained. Iterate it in forward()."},
+    {"name": "weight tying", "sig": "self.lm_head.weight = self.tok_emb.weight", "desc": "Make the output projection share one weight matrix with the token embedding — fewer parameters and usually better perplexity."},
+    {"name": "torch.no_grad", "sig": "@torch.no_grad()  /  with torch.no_grad():", "desc": "Disables gradient tracking inside the block — use it for generation / inference to save memory and time."},
+    {"name": "Tensor.argmax", "sig": "x.argmax(dim) -> Tensor", "desc": "Index of the maximum along a dimension. Greedy decoding takes the argmax of the last position's logits."}
+  ],
+  "21_training_loop": [
+    {"name": "optimizer.zero_grad / step", "sig": "opt.zero_grad(); loss.backward(); opt.step()", "desc": "The training trinity: clear last step's grads, backprop the loss, then apply one parameter update. Order matters."},
+    {"name": "tensor slicing", "sig": "tokens[:, :-1] , tokens[:, 1:]", "desc": "Basic slicing to build teacher-forcing pairs: inputs are all-but-last tokens, targets are all-but-first (shifted by one)."}
+  ],
+  "22_sampling": [
+    {"name": "torch.topk", "sig": "torch.topk(x, k, dim) -> (values, indices)", "desc": "The k largest values (and their indices) along a dim. The k-th value is the threshold for top-k filtering."},
+    {"name": "torch.sort", "sig": "torch.sort(x, dim, descending=False) -> (values, indices)", "desc": "Sorts along a dim and also returns the indices. Nucleus (top-p) sampling sorts by probability, then cumulates."},
+    {"name": "Tensor.cumsum", "sig": "x.cumsum(dim) -> Tensor", "desc": "Running cumulative sum along a dim — used to find the smallest set of tokens whose probabilities reach p."},
+    {"name": "Tensor.scatter", "sig": "x.scatter(dim, index, src) -> Tensor", "desc": "Out-of-place scatter (returns a new tensor). Maps the keep/remove mask from sorted order back to the original token order."}
+  ],
+  "23_lr_schedule": [
+    {"name": "math.cos / math.pi", "sig": "math.cos(x), math.pi", "desc": "Scalar cosine and pi from Python's math module — the cosine-decay portion of the learning-rate curve."},
+    {"name": "Tensor.mul_", "sig": "x.mul_(c) -> Tensor", "desc": "In-place multiply by a scalar (the trailing underscore = in-place). Scales gradients down during clipping."}
+  ],
+  "24_beam_search": [
+    {"name": "list.sort(key=...)", "sig": "candidates.sort(key=lambda c: c[1], reverse=True)", "desc": "Plain Python list sort. Beam search ranks all expanded candidates by cumulative log-prob and keeps the top few."}
+  ],
+  "25_adamw": [
+    {"name": "Tensor.add_", "sig": "x.add_(y, alpha=c) -> Tensor", "desc": "In-place x += c * y. Used for the momentum (first-moment) EMA update."},
+    {"name": "Tensor.addcmul_", "sig": "x.addcmul_(a, b, value=c) -> Tensor", "desc": "In-place x += c * a * b. Second-moment update with g * g."},
+    {"name": "Tensor.addcdiv_", "sig": "x.addcdiv_(a, b, value=c) -> Tensor", "desc": "In-place x += c * a / b. The Adam parameter step (m_hat / (sqrt(v_hat) + eps))."}
+  ],
+  "26_moe": [
+    {"name": "boolean mask compare", "sig": "(topi == e)", "desc": "Element-wise comparison gives a boolean tensor. Multiply by it (or use it in a sum) to select / zero entries — here, which tokens routed to expert e."}
+  ],
+  "27_lora": [
+    {"name": "nn.Parameter", "sig": "nn.Parameter(tensor)", "desc": "Wraps a tensor as a learnable model parameter (auto-registered for training). Set .requires_grad_(False) to freeze the base weight."}
+  ],
+  "28_flash_attention": [
+    {"name": "torch.maximum", "sig": "torch.maximum(a, b) -> Tensor", "desc": "Element-wise max of two tensors — tracks the running row-max in the online-softmax update."},
+    {"name": "torch.full", "sig": "torch.full(size, fill_value) -> Tensor", "desc": "A tensor filled with a constant. Used to initialize the running max to -inf."}
+  ],
+  "29_speculative_decoding": [
+    {"name": "torch.clamp", "sig": "torch.clamp(x, min=None, max=None) -> Tensor", "desc": "Clips values into a range. Acceptance prob = clamp(p/q, max=1); the residual distribution = clamp(p - q, min=0) then normalized."},
+    {"name": "torch.multinomial", "sig": "torch.multinomial(probs, n, replacement) -> LongTensor", "desc": "Samples category indices from a probability distribution — used to draw from the draft / residual distributions."}
+  ],
+  "30_rl_losses": [
+    {"name": "F.logsigmoid", "sig": "F.logsigmoid(x) -> Tensor", "desc": "Numerically stable log(sigmoid(x)) — the DPO loss is -logsigmoid(beta * margin)."},
+    {"name": "torch.min", "sig": "torch.min(a, b) -> Tensor", "desc": "Element-wise minimum of two tensors. PPO's clipped objective takes min(unclipped, clipped)."},
+    {"name": "Tensor.std", "sig": "x.std(dim, unbiased=False, keepdim=False) -> Tensor", "desc": "Standard deviation along a dim. GRPO standardizes rewards within each group: (r - mean) / (std + eps)."}
+  ],
+  "31_vit_patch_embed": [
+    {"name": "Tensor.permute", "sig": "x.permute(*dims) -> Tensor", "desc": "Reorders all dimensions at once (a general transpose). Groups each patch's pixels together before flattening to a token."},
+    {"name": "Tensor.expand", "sig": "x.expand(*sizes) -> Tensor", "desc": "Broadcasts size-1 dims to a larger size without copying. Replicates the single CLS token across the batch."}
+  ],
+  "32_clip_loss": [
+    {"name": "F.normalize", "sig": "F.normalize(x, dim=-1) -> Tensor", "desc": "L2-normalizes along a dim (turns rows into unit vectors). CLIP normalizes the image and text embeddings before taking cosine similarity."}
+  ],
+  "33_llava_projector": [],
+  "34_cross_attention": [],
+  "35_rope_2d": [
+    {"name": "Tensor.repeat", "sig": "x.repeat(*sizes) -> Tensor", "desc": "Tiles the whole tensor (unlike repeat_interleave, which repeats elements one-by-one). arange(W).repeat(H) builds the per-row column-index grid."}
+  ]
+}

@@ -192,6 +192,23 @@ function setHTMLWithScripts(el, html) {
   });
 }
 
+// ---- "new functions in this task" panel ----
+function renderApis(list) {
+  const box = $("#apis");
+  if (!box) return;
+  if (!list || !list.length) { box.innerHTML = ""; return; }
+  let html = '<div class="apis-card"><h4>🔧 New functions in this task</h4>';
+  for (const a of list) {
+    html +=
+      '<div class="api">' +
+      `<code class="api-sig">${escapeHtml(a.sig || a.name)}</code>` +
+      `<div class="api-desc">${escapeHtml(a.desc || "")}</div>` +
+      "</div>";
+  }
+  html += "</div>";
+  box.innerHTML = html;
+}
+
 // ---- load a problem ----
 async function loadProblem(id) {
   const p = await api(`/api/problems/${id}`);
@@ -202,6 +219,7 @@ async function loadProblem(id) {
   $("#desc-level").textContent = `Level ${p.level}`;
   $("#desc-title").textContent = stripNum(p.title);
   setHTMLWithScripts($("#explainer"), p.explainer);
+  renderApis(p.apis);
   $("#desc-body").innerHTML = window.marked
     ? marked.parse(p.description || "")
     : `<pre>${escapeHtml(p.description || "")}</pre>`;

@@ -73,6 +73,17 @@ header {
 
 #explainer { margin: 10px 0 18px; }
 #explainer:empty { display: none; }
+#apis:empty { display: none; }
+
+/* "new functions in this task" panel */
+.apis-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin: 6px 0 18px; background: var(--panel); }
+.apis-card h4 { margin: 0 0 10px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: .05em; }
+.api { padding: 8px 0; border-top: 1px solid var(--border); }
+.api:first-of-type { border-top: 0; padding-top: 0; }
+.api-sig { display: inline-block; font-family: var(--mono); font-size: 12.5px; color: #ffd9a0; background: #0b1020; border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; }
+.api-desc { margin-top: 5px; font-size: 13px; line-height: 1.5; color: #c9d1d9; }
+body.light .api-sig { background: #eef1f6; color: #b35900; }
+body.light .api-desc { color: #2b3340; }
 
 .markdown { line-height: 1.6; font-size: 14px; color: #c9d1d9; }
 .markdown h1, .markdown h2, .markdown h3 { color: var(--fg); margin: 16px 0 8px; }
