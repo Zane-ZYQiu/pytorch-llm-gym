@@ -199,11 +199,17 @@ function renderApis(list) {
   if (!list || !list.length) { box.innerHTML = ""; return; }
   let html = '<div class="apis-card"><h4>🔧 New functions in this task</h4>';
   for (const a of list) {
-    html +=
+    let item =
       '<div class="api">' +
       `<code class="api-sig">${escapeHtml(a.sig || a.name)}</code>` +
-      `<div class="api-desc">${escapeHtml(a.desc || "")}</div>` +
-      "</div>";
+      `<div class="api-desc">${escapeHtml(a.desc || "")}</div>`;
+    if (a.long) {
+      item +=
+        '<details class="api-more"><summary>More detail</summary>' +
+        `<div class="api-long">${escapeHtml(a.long)}</div></details>`;
+    }
+    item += "</div>";
+    html += item;
   }
   html += "</div>";
   box.innerHTML = html;
