@@ -1,3 +1,7 @@
 torch>=2.2
 numpy>=1.26
 pytest>=8.0
+
+# Optional: enables richer editor linting (undefined names, unused imports).
+# Without it, the editor still does real CPython syntax checking via the stdlib.
+# pyflakes>=3.0

@@ -13,25 +13,109 @@ const codeKey = (dir) => `gym:code:${dir}`;
 const solvedKey = (dir) => `gym:solved:${dir}`;
 const isSolved = (dir) => localStorage.getItem(solvedKey(dir)) === "1";
 
+// ---- editor: autocomplete vocabulary ----
+const PY_KEYWORDS = [
+  "def", "return", "if", "elif", "else", "for", "while", "in", "not", "and", "or",
+  "import", "from", "as", "class", "with", "lambda", "None", "True", "False", "pass",
+  "raise", "try", "except", "finally", "yield", "assert", "break", "continue",
+  "global", "nonlocal", "is", "del", "print", "range", "len", "enumerate", "zip",
+  "isinstance", "int", "float", "str", "list", "dict", "tuple", "set", "bool", "super",
+];
+const TORCH_API = [
+  "torch", "nn", "Tensor", "tensor", "reshape", "view", "contiguous", "transpose",
+  "permute", "matmul", "mm", "bmm", "einsum", "softmax", "log_softmax", "logsumexp",
+  "gather", "scatter", "scatter_", "masked_fill", "triu", "tril", "arange", "zeros",
+  "zeros_like", "ones", "ones_like", "full", "randn", "rand", "randint", "cat", "stack",
+  "split", "chunk", "unbind", "unsqueeze", "squeeze", "expand", "repeat",
+  "repeat_interleave", "mean", "var", "std", "sum", "max", "min", "maximum", "minimum",
+  "sqrt", "rsqrt", "exp", "log", "pow", "sigmoid", "tanh", "clamp", "clamp_min", "norm",
+  "normalize", "topk", "multinomial", "where", "sort", "cumsum", "argmax", "argmin",
+  "flatten", "dim", "keepdim", "shape", "dtype", "device", "requires_grad_", "backward",
+  "detach", "clone", "item", "numel", "size", "long", "values", "indices",
+  "Linear", "Embedding", "RMSNorm", "LayerNorm", "Dropout", "Parameter", "Module",
+  "ModuleList", "Sequential", "scaled_dot_product_attention", "cross_entropy", "silu",
+  "gelu", "relu", "one_hot", "logsigmoid", "no_grad", "manual_seed", "erf",
+];
+const HINT_WORDS = Array.from(new Set([...PY_KEYWORDS, ...TORCH_API]));
+
+function pythonHint(cm) {
+  const cur = cm.getCursor();
+  const line = cm.getLine(cur.line);
+  let start = cur.ch;
+  while (start > 0 && /[A-Za-z0-9_]/.test(line.charAt(start - 1))) start--;
+  const word = line.slice(start, cur.ch);
+  // words already present in the file (so your own functions/vars autocomplete too)
+  const docWords = new Set();
+  let m; const re = /[A-Za-z_][A-Za-z0-9_]*/g;
+  while ((m = re.exec(cm.getValue()))) docWords.add(m[0]);
+  const pool = Array.from(new Set([...HINT_WORDS, ...docWords]));
+  const lw = word.toLowerCase();
+  const list = pool
+    .filter((w) => w !== word && (lw === "" || w.toLowerCase().startsWith(lw)))
+    .sort();
+  return { list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, cur.ch) };
+}
+
+// async linter: real CPython syntax check via the backend
+function pyLint(content, updateLinting, options, cm) {
+  api("/api/lint", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code: content }),
+  })
+    .then((res) => {
+      const anns = (res.annotations || []).map((a) => {
+        const ln = Math.max(0, (a.line || 1) - 1);
+        const txt = cm.getLine(ln) || "";
+        const col = Math.max(0, (a.col || 1) - 1);
+        return {
+          message: a.message,
+          severity: a.severity === "warning" ? "warning" : "error",
+          from: CodeMirror.Pos(ln, Math.min(col, txt.length)),
+          to: CodeMirror.Pos(ln, Math.max(col + 1, txt.length)),
+        };
+      });
+      updateLinting(anns);
+    })
+    .catch(() => updateLinting([]));
+}
+
 // ---- editor ----
 function initEditor() {
   const ta = $("#code");
-  if (window.CodeMirror) {
-    editor = CodeMirror.fromTextArea(ta, {
-      mode: "python",
-      theme: "material-darker",
-      lineNumbers: true,
-      indentUnit: 4,
-      tabSize: 4,
-      indentWithTabs: false,
-      scrollPastEnd: true,
-      extraKeys: {
-        "Cmd-Enter": runTests,
-        "Ctrl-Enter": runTests,
-        Tab: (cm) => cm.replaceSelection("    "),
-      },
-    });
-  }
+  if (!window.CodeMirror) return;
+  editor = CodeMirror.fromTextArea(ta, {
+    mode: "python",
+    theme: "material-darker",
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+    scrollPastEnd: true,
+    gutters: ["CodeMirror-lint-markers"],
+    lint: { getAnnotations: pyLint, async: true, delay: 500 },
+    extraKeys: {
+      "Cmd-Enter": runTests,
+      "Ctrl-Enter": runTests,
+      "Ctrl-Space": (cm) => cm.showHint({ hint: pythonHint, completeSingle: false }),
+      Tab: (cm) => cm.replaceSelection("    "),
+    },
+  });
+  // pop the autocomplete dropdown as you type an identifier (or after a dot)
+  editor.on("inputRead", (cm, change) => {
+    if (cm.state.completionActive) return;
+    const ch = (change.text && change.text[0]) || "";
+    if (ch === ".") {
+      cm.showHint({ hint: pythonHint, completeSingle: false });
+      return;
+    }
+    if (/[A-Za-z_]/.test(ch)) {
+      const cur = cm.getCursor(), line = cm.getLine(cur.line);
+      let s = cur.ch;
+      while (s > 0 && /[A-Za-z0-9_]/.test(line.charAt(s - 1))) s--;
+      if (cur.ch - s >= 2) cm.showHint({ hint: pythonHint, completeSingle: false });
+    }
+  });
 }
 const getCode = () => (editor ? editor.getValue() : $("#code").value);
 const setCode = (v) => (editor ? editor.setValue(v) : ($("#code").value = v));

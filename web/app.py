@@ -100,6 +100,50 @@ def run_user_code(pid, code):
                 pass
 
 
+def lint_code(code):
+    """Syntax-check the code with real CPython. Returns annotations for the editor.
+    Uses stdlib compile() for hard syntax errors; pyflakes (if installed) for warnings."""
+    anns = []
+    try:
+        compile(code, "<editor>", "exec")
+    except SyntaxError as e:
+        anns.append({"line": e.lineno or 1, "col": e.offset or 1,
+                     "message": f"SyntaxError: {e.msg}", "severity": "error"})
+        return {"ok": True, "annotations": anns}
+    except Exception as e:  # e.g. ValueError: source code contains null bytes
+        anns.append({"line": 1, "col": 1,
+                     "message": f"{type(e).__name__}: {e}", "severity": "error"})
+        return {"ok": True, "annotations": anns}
+    # optional richer checks (undefined names, unused imports, ...) if pyflakes exists
+    try:
+        import pyflakes.api  # noqa: WPS433
+
+        class _Collector:
+            def __init__(self):
+                self.items = []
+
+            def unexpectedError(self, *a):
+                pass
+
+            def syntaxError(self, *a):
+                pass
+
+            def flake(self, m):
+                self.items.append({
+                    "line": getattr(m, "lineno", 1),
+                    "col": getattr(m, "col", 0) + 1,
+                    "message": (m.message % m.message_args),
+                    "severity": "warning",
+                })
+
+        c = _Collector()
+        pyflakes.api.check(code, "<editor>", c)
+        anns.extend(c.items)
+    except Exception:  # noqa: BLE001 — pyflakes optional
+        pass
+    return {"ok": True, "annotations": anns}
+
+
 # ----------------------------------------------------------------- http
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):  # keep it quiet
@@ -142,16 +186,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._send_json(prob) if prob else self._send_json({"error": "not found"}, 404)
         self.send_error(404)
 
+    def _read_json(self):
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            return json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            return None
+
     def do_POST(self):
         path = urlparse(self.path).path
         if path == "/api/run":
-            length = int(self.headers.get("Content-Length", 0))
-            try:
-                payload = json.loads(self.rfile.read(length) or b"{}")
-            except json.JSONDecodeError:
+            payload = self._read_json()
+            if payload is None:
                 return self._send_json({"ok": False, "error": "bad json"}, 400)
-            result = run_user_code(str(payload.get("id", "")), payload.get("code", ""))
-            return self._send_json(result)
+            return self._send_json(run_user_code(str(payload.get("id", "")), payload.get("code", "")))
+        if path == "/api/lint":
+            payload = self._read_json()
+            if payload is None:
+                return self._send_json({"ok": False, "error": "bad json"}, 400)
+            return self._send_json(lint_code(payload.get("code", "")))
         self.send_error(404)
 
 
