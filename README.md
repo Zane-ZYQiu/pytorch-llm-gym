@@ -23,9 +23,10 @@ There are two ways to use it: a **browser app** (recommended) and a **CLI**.
 ## 🌐 Web app (recommended)
 
 A local, zero-build web UI: write code in the browser, hit **Run**, and it executes the real `pytest`
-on your machine. Comes with **interactive, graphical explanations** (drag a slider to see how
-temperature reshapes a softmax; toggle a causal mask on an attention heatmap; hover a Transformer
-block diagram).
+on your machine. The editor is **Monaco** (the engine behind VS Code) — syntax highlighting,
+PyTorch-aware autocomplete, and live Python syntax checking (real CPython, via the backend). Comes
+with **interactive, graphical explanations** (drag a slider to see how temperature reshapes a
+softmax; toggle a causal mask on an attention heatmap; hover a Transformer block diagram).
 
 ```bash
 pip install -r requirements.txt      # torch + pytest

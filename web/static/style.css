@@ -84,8 +84,7 @@ header {
 
 /* work / editor */
 #work { flex: 1 1 56%; min-width: 340px; display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
-#editor-wrap { flex: 1; min-height: 0; overflow: hidden; }
-.CodeMirror { height: 100% !important; font-family: var(--mono); font-size: 13.5px; }
+#editor-wrap { flex: 1; min-height: 0; overflow: hidden; position: relative; }
 #code { width: 100%; height: 100%; }
 
 #toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-top: 1px solid var(--border); }
@@ -124,7 +123,7 @@ header {
   #sidebar { width: auto !important; max-height: 160px; }
   #desc, #work { flex: none; width: 100%; }
   #splitter, #splitter-left, #splitter-h { display: none; }
-  .CodeMirror { height: 320px !important; }
+  #editor-wrap { flex: none; height: 360px; }
 }
 
 /* light theme */

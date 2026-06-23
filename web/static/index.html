@@ -5,17 +5,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PyTorch LLM Gym</title>
   <link rel="stylesheet" href="/static/style.css" />
-  <!-- CodeMirror (editor) + marked (Markdown), loaded from CDN -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/lint/lint.min.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/scroll/scrollpastend.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/lint/lint.min.js"></script>
+  <!-- marked first, so it attaches window.marked before Monaco's AMD loader defines `define` -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+  <!-- Monaco Editor — the engine behind VS Code (and LeetCode). Loaded from CDN, no build step. -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+  <script>
+    require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs" } });
+    // Monaco's web workers, bootstrapped from the CDN (keeps the zero-build setup working).
+    window.MonacoEnvironment = {
+      getWorkerUrl: function () {
+        return "data:text/javascript;charset=utf-8," + encodeURIComponent(
+          "self.MonacoEnvironment={baseUrl:'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/'};" +
+          "importScripts('https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js');"
+        );
+      }
+    };
+    require(["vs/editor/editor.main"], function () {
+      window.__MONACO_READY = true;
+      document.dispatchEvent(new Event("monaco-ready"));
+    });
+  </script>
 </head>
 <body>
   <header>
@@ -46,7 +55,7 @@
     <div id="splitter" title="Drag to resize"></div>
 
     <section id="work">
-      <div id="editor-wrap"><textarea id="code"></textarea></div>
+      <div id="editor-wrap"><div id="code"></div></div>
       <div id="toolbar">
         <button id="run" class="btn primary">▶ Run tests</button>
         <button id="reset" class="btn">↺ Reset</button>

@@ -38,87 +38,104 @@ const TORCH_API = [
 ];
 const HINT_WORDS = Array.from(new Set([...PY_KEYWORDS, ...TORCH_API]));
 
-function pythonHint(cm) {
-  const cur = cm.getCursor();
-  const line = cm.getLine(cur.line);
-  let start = cur.ch;
-  while (start > 0 && /[A-Za-z0-9_]/.test(line.charAt(start - 1))) start--;
-  const word = line.slice(start, cur.ch);
-  // words already present in the file (so your own functions/vars autocomplete too)
-  const docWords = new Set();
-  let m; const re = /[A-Za-z_][A-Za-z0-9_]*/g;
-  while ((m = re.exec(cm.getValue()))) docWords.add(m[0]);
-  const pool = Array.from(new Set([...HINT_WORDS, ...docWords]));
-  const lw = word.toLowerCase();
-  const list = pool
-    .filter((w) => w !== word && (lw === "" || w.toLowerCase().startsWith(lw)))
-    .sort();
-  return { list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, cur.ch) };
+// real CPython lint via the backend, surfaced through Monaco's marker API
+let _lintTimer = null;
+function scheduleLint() {
+  clearTimeout(_lintTimer);
+  _lintTimer = setTimeout(runLint, 450);
 }
-
-// async linter: real CPython syntax check via the backend
-function pyLint(content, updateLinting, options, cm) {
+function runLint() {
+  if (!editor || !window.monaco) return;
+  const model = editor.getModel();
   api("/api/lint", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: content }),
+    body: JSON.stringify({ code: model.getValue() }),
   })
     .then((res) => {
-      const anns = (res.annotations || []).map((a) => {
-        const ln = Math.max(0, (a.line || 1) - 1);
-        const txt = cm.getLine(ln) || "";
-        const col = Math.max(0, (a.col || 1) - 1);
-        return {
-          message: a.message,
-          severity: a.severity === "warning" ? "warning" : "error",
-          from: CodeMirror.Pos(ln, Math.min(col, txt.length)),
-          to: CodeMirror.Pos(ln, Math.max(col + 1, txt.length)),
-        };
-      });
-      updateLinting(anns);
+      const markers = (res.annotations || []).map((a) => ({
+        startLineNumber: a.line || 1,
+        startColumn: a.col || 1,
+        endLineNumber: a.line || 1,
+        endColumn: (a.col || 1) + 1,
+        message: a.message,
+        severity: a.severity === "warning"
+          ? monaco.MarkerSeverity.Warning
+          : monaco.MarkerSeverity.Error,
+      }));
+      monaco.editor.setModelMarkers(model, "pylint", markers);
     })
-    .catch(() => updateLinting([]));
+    .catch(() => {});
 }
 
-// ---- editor ----
-function initEditor() {
-  const ta = $("#code");
-  if (!window.CodeMirror) return;
-  editor = CodeMirror.fromTextArea(ta, {
-    mode: "python",
-    theme: "material-darker",
-    lineNumbers: true,
-    indentUnit: 4,
-    tabSize: 4,
-    indentWithTabs: false,
-    scrollPastEnd: true,
-    gutters: ["CodeMirror-lint-markers"],
-    lint: { getAnnotations: pyLint, async: true, delay: 500 },
-    extraKeys: {
-      "Cmd-Enter": runTests,
-      "Ctrl-Enter": runTests,
-      "Ctrl-Space": (cm) => cm.showHint({ hint: pythonHint, completeSingle: false }),
-      Tab: (cm) => cm.replaceSelection("    "),
+// register theme + Python autocomplete (PyTorch API + keywords + in-file identifiers) once
+let _monacoRegistered = false;
+function registerMonaco() {
+  if (_monacoRegistered) return;
+  _monacoRegistered = true;
+  monaco.editor.defineTheme("gym-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [],
+    colors: { "editor.background": "#0d1117" },
+  });
+  const KW = new Set(PY_KEYWORDS);
+  monaco.languages.registerCompletionItemProvider("python", {
+    provideCompletionItems(model, position) {
+      const w = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: w.startColumn,
+        endColumn: w.endColumn,
+      };
+      const docWords = new Set(model.getValue().match(/[A-Za-z_][A-Za-z0-9_]*/g) || []);
+      const pool = Array.from(new Set([...HINT_WORDS, ...docWords]));
+      const suggestions = pool.map((label) => ({
+        label,
+        kind: KW.has(label)
+          ? monaco.languages.CompletionItemKind.Keyword
+          : monaco.languages.CompletionItemKind.Function,
+        insertText: label,
+        range,
+      }));
+      return { suggestions };
     },
   });
-  // pop the autocomplete dropdown as you type an identifier (or after a dot)
-  editor.on("inputRead", (cm, change) => {
-    if (cm.state.completionActive) return;
-    const ch = (change.text && change.text[0]) || "";
-    if (ch === ".") {
-      cm.showHint({ hint: pythonHint, completeSingle: false });
-      return;
-    }
-    if (/[A-Za-z_]/.test(ch)) {
-      const cur = cm.getCursor(), line = cm.getLine(cur.line);
-      let s = cur.ch;
-      while (s > 0 && /[A-Za-z0-9_]/.test(line.charAt(s - 1))) s--;
-      if (cur.ch - s >= 2) cm.showHint({ hint: pythonHint, completeSingle: false });
-    }
+}
+
+// ---- editor (Monaco — the VS Code engine) ----
+function initEditor() {
+  registerMonaco();
+  editor = monaco.editor.create($("#code"), {
+    value: "",
+    language: "python",
+    theme: "gym-dark",
+    automaticLayout: true,
+    fontSize: 13.5,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    tabSize: 4,
+    insertSpaces: true,
+    minimap: { enabled: true },
+    scrollBeyondLastLine: true,
+    smoothScrolling: true,
+    cursorBlinking: "smooth",
+    padding: { top: 10 },
+    fixedOverflowWidgets: true,
+    bracketPairColorization: { enabled: true },
+  });
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => runTests());
+  editor.onDidChangeModelContent(scheduleLint);
+}
+
+function whenMonacoReady() {
+  return new Promise((resolve) => {
+    if (window.monaco && window.__MONACO_READY) return resolve();
+    document.addEventListener("monaco-ready", () => resolve(), { once: true });
   });
 }
-const getCode = () => (editor ? editor.getValue() : $("#code").value);
-const setCode = (v) => (editor ? editor.setValue(v) : ($("#code").value = v));
+const getCode = () => (editor ? editor.getValue() : "");
+const setCode = (v) => { if (editor) editor.setValue(v != null ? v : ""); };
 
 // ---- sidebar ----
 function renderSidebar() {
@@ -298,7 +315,7 @@ function applyTheme(light) {
   document.body.classList.toggle("light", light);
   const btn = $("#theme");
   if (btn) btn.textContent = light ? "☀️" : "🌙";
-  if (editor) editor.setOption("theme", light ? "default" : "material-darker");
+  if (window.monaco) monaco.editor.setTheme(light ? "vs" : "gym-dark");
   localStorage.setItem("gym:theme", light ? "light" : "dark");
 }
 
@@ -306,7 +323,7 @@ function applyTheme(light) {
 function initSplitters() {
   const layout = $("#layout"), sidebar = $("#sidebar"), desc = $("#desc"),
         work = $("#work"), consoleEl = $("#console");
-  const refresh = () => { if (editor) editor.refresh(); };
+  const refresh = () => { if (editor) editor.layout(); };
 
   // restore saved sizes
   const sw = localStorage.getItem("gym:sidebarWidth");
@@ -357,6 +374,7 @@ function initSplitters() {
 
 // ---- boot ----
 async function boot() {
+  await whenMonacoReady();
   initEditor();
   applyTheme(localStorage.getItem("gym:theme") === "light");
   initSplitters();
