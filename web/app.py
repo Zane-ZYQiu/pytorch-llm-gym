@@ -9,6 +9,8 @@ on your own machine.
 """
 import json
 import os
+import re
+import ast
 import sys
 import subprocess
 import tempfile
@@ -77,6 +79,43 @@ def get_solution(pid):
     return practice.solution_code(d) if d else ""
 
 
+def _parse_pytest(out, code=""):
+    """Turn raw pytest output into a clean structured result the UI can render."""
+    # top-level function/class names the student defined (to map a test -> their function)
+    funcs = []
+    try:
+        tree = ast.parse(code)
+        funcs = [n.name for n in tree.body
+                 if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+    except Exception:  # noqa: BLE001
+        funcs = []
+
+    def _count(word):
+        m = re.search(r"(\d+) " + word, out)
+        return int(m.group(1)) if m else 0
+
+    summary = {"passed": _count("passed"), "failed": _count("failed"), "errors": _count("error")}
+
+    failures = []
+    start = re.search(r"=+ (FAILURES|ERRORS) =+", out)
+    if start:
+        endm = re.search(r"=+ short test summary", out)
+        seg = out[start.end():endm.start() if endm else len(out)]
+        parts = re.split(r"\n_{3,} (.+?) _{3,}\n", seg)  # [pre, name, body, name, body, ...]
+        for i in range(1, len(parts), 2):
+            name = parts[i].strip()
+            body = parts[i + 1] if i + 1 < len(parts) else ""
+            loc = None
+            mloc = re.search(r"(exercises/\S+\.py):(\d+):", body)
+            if mloc:
+                loc = f"{mloc.group(1)}:{mloc.group(2)}"
+            errs = [ln[1:].strip() for ln in body.splitlines() if ln.startswith("E ")]
+            message = errs[-1] if errs else ""
+            fn = next((f for f in funcs if f and f in name), None)
+            failures.append({"test": name, "func": fn, "location": loc, "message": message})
+    return summary, failures
+
+
 def run_user_code(pid, code):
     d = practice.ex_by_id(pid)
     if not d:
@@ -91,12 +130,14 @@ def run_user_code(pid, code):
         env["PRACTICE_USER_CODE"] = tmp
         proc = subprocess.run(
             [sys.executable, "-m", "pytest", str(d / "test.py"),
-             "-q", "--no-header", "--tb=short", "-p", "no:cacheprovider"],
+             "-q", "--no-header", "--tb=short", "--assert=plain", "-p", "no:cacheprovider"],
             cwd=str(ROOT), env=env, capture_output=True, text=True,
             timeout=RUN_TIMEOUT,
         )
+        out = (proc.stdout + proc.stderr).strip()
+        summary, failures = _parse_pytest(out, code)
         return {"ok": True, "passed": proc.returncode == 0,
-                "output": (proc.stdout + proc.stderr).strip()}
+                "output": out, "summary": summary, "failures": failures}
     except subprocess.TimeoutExpired:
         return {"ok": True, "passed": False, "output": f"Timed out (>{RUN_TIMEOUT}s)"}
     except Exception as e:  # noqa: BLE001

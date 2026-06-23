@@ -246,6 +246,38 @@ function setConsole(text, cls) {
   c.innerHTML = cls ? `<span class="${cls}">${escapeHtml(text)}</span>` : escapeHtml(text);
 }
 
+// render a structured test result: a clean summary + one card per failing test
+function renderRunResult(res) {
+  const c = $("#console");
+  c.className = "";
+  const s = res.summary || {};
+  if (res.passed) {
+    const n = s.passed || 0;
+    c.innerHTML = `<span class="ok">✓ All ${n} test${n === 1 ? "" : "s"} passed</span>`;
+    return;
+  }
+  let html = '<div class="run-summary">' +
+    `<span class="err">✗ ${s.failed || 0} failed</span>` +
+    (s.passed ? ` <span class="ok">· ${s.passed} passed</span>` : "") + "</div>";
+  const fails = res.failures || [];
+  if (fails.length) {
+    for (const f of fails) {
+      html +=
+        '<div class="fail">' +
+        `<span class="fail-test">✗ ${escapeHtml(f.test)}</span>` +
+        (f.func ? ` <span class="fail-fn">— checks your <b>${escapeHtml(f.func)}()</b></span>` : "") +
+        (f.location ? `<span class="fail-loc">${escapeHtml(f.location)}</span>` : "") +
+        (f.message ? `<span class="fail-msg">${escapeHtml(f.message)}</span>` : "") +
+        "</div>";
+    }
+  } else {
+    html += `<pre class="raw-pre">${escapeHtml(res.output || "")}</pre>`;
+  }
+  html += `<details class="raw"><summary>Show raw pytest output</summary>` +
+          `<pre>${escapeHtml(res.output || "")}</pre></details>`;
+  c.innerHTML = html;
+}
+
 // ---- run ----
 async function runTests() {
   if (!current) return;
@@ -267,11 +299,7 @@ async function runTests() {
       setConsole(res.error || "unknown error", "err");
       return;
     }
-    const c = $("#console");
-    c.className = "";
-    c.innerHTML =
-      `<span class="${res.passed ? "ok" : "err"}">${res.passed ? "✓ All tests passed" : "✗ Tests failed"}</span>\n\n` +
-      escapeHtml(res.output || "");
+    renderRunResult(res);
     if (res.passed) {
       $("#status").className = "status pass";
       $("#status").textContent = "✓ passed";
