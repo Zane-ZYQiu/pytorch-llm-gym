@@ -135,3 +135,16 @@ body.light .markdown { color: #2b3340; }
 body.light .markdown code { background: #eef1f6; color: #b35900; }
 body.light .markdown pre, body.light .markdown pre code { background: #eef1f6; color: #2b3340; }
 body.light #console { background: #f4f6f8; color: #2b3340; }
+
+/* Interactive explainer cards use dark-tuned colors; keep them dark in light mode
+   so their text stays readable (they render as a deliberate "demo panel"). */
+body.light .viz {
+  --panel2: #1c2330;
+  --border: #2b3340;
+  --fg: #e6edf3;
+  --muted: #8b949e;
+  --accent: #4f8cff;
+  background: #1c2330;
+  border-color: #2b3340;
+  color: #e6edf3;
+}
