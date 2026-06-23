@@ -14,7 +14,7 @@ description, a code skeleton with `TODO`s, and a test suite — you fill in the 
 pass/fail feedback. Built for interview prep and for anyone who wants to *actually* understand how
 LLMs work by building them.
 
-![PyTorch LLM Gym screenshot](docs/screenshot-rope.png)
+![PyTorch LLM Gym screenshot](docs/screenshot.png)
 
 There are two ways to use it: a **browser app** (recommended) and a **CLI**.
 
