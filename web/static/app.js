@@ -204,9 +204,10 @@ function renderApis(list) {
       `<code class="api-sig">${escapeHtml(a.sig || a.name)}</code>` +
       `<div class="api-desc">${escapeHtml(a.desc || "")}</div>`;
     if (a.long) {
+      const longHtml = window.marked ? marked.parse(a.long) : `<pre>${escapeHtml(a.long)}</pre>`;
       item +=
         '<details class="api-more"><summary>More detail</summary>' +
-        `<div class="api-long">${escapeHtml(a.long)}</div></details>`;
+        `<div class="api-long markdown">${longHtml}</div></details>`;
     }
     item += "</div>";
     html += item;
